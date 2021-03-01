@@ -58,7 +58,7 @@ X_MC_2016 = pd.concat([X_MC_2016_MU, X_MC_2016_MD])
 X_MC_2016 = X_MC_2016.loc[(X_MC_2016['B_s0_DTF_M'] > 5500) & (X_MC_2016['B_s0_DTF_M'] < 6500)]
 X_data_2016 = X_data_2016.loc[(X_data_2016['B_s0_DTF_M'] > 5500) & (X_data_2016['B_s0_DTF_M'] < 6500)] 
 
-
+#Plot variables in histograms and save to pdf:
 for var in allvars:
     range_low  = min(X_data_2016[var].min(), X_MC_2016[var].min())
     range_high = max(X_data_2016[var].max(), X_MC_2016[var].max())
