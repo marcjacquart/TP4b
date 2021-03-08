@@ -6,8 +6,8 @@ import numpy as np
 
 
 # Settings to chose:
-importCSV=True
-plotCorrelation=True
+importCSV=False
+plotCorrelation=False
 plotVar=False
 
 if plotCorrelation:
@@ -118,11 +118,16 @@ else:
 		df['DIFF_ETA_emu']=abs(df['eplus_ETA']-df['muminus_ETA'])							  # Difference in pseudorapidity, absolute value
 		allvars.append('DIFF_ETA_emu')
 
+	X_MC['sig']= 1
+	X_data['sig']=0
 	print("Dataset complete")
 	
 	# Saving datasets to CSV for further use
 	X_MC.to_csv(f'{pathCSV}/X_MC.csv')
 	X_data.to_csv(f'{pathCSV}/X_data.csv')
+
+	X =pd.concat([X_MC,X_data]) # Merge everything in 1 csv file for training
+	X.to_csv(f'{pathCSV}/X.csv')
 
 
 #Plot correlation matrix between variables: 				(from: https://seaborn.pydata.org/examples/many_pairwise_correlations.html)
