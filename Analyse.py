@@ -1,19 +1,16 @@
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.model_selection import train_test_split 	# To use method with same name
-from sklearn.metrics import roc_curve, auc 				# Roc: receiver operating characteristic, auc: Area under the ROC Curve
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import joblib
+from sklearn.metrics import roc_curve, auc #roc: receiver operating characteristic, auc: Area under the ROC Curve
+from sklearn.model_selection import train_test_split
 
 
 pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']
 print("csv loaded")
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) #random state: seed for random assignation of data in the split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) #random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
 
 features = ['B_s0_TAU',				# B lifetime
 			'MIN_IPCHI2_emu',		# Minimum on the two impact parameters chi2, large if signal (comes from secondary vertex)
@@ -27,20 +24,14 @@ features = ['B_s0_TAU',				# B lifetime
 			'DIFF_ETA_emu']			# Absolute difference in pseudorapidity of emu
 
 
-dt    = DecisionTreeClassifier(max_depth=3)												# Define the decision tree
-model = AdaBoostClassifier(dt, algorithm='SAMME.R', n_estimators=50, learning_rate=0.1)	# Define the model using the decision tree
-print("Model defined")
-model.fit(X_train[features], y_train)
-print("model trained")
+#  Retrive model
+pathModel='/home/mjacquar/TP4b/model'
+model = joblib.load(f'{pathModel}/bdt_model.pkl')
 
-
-pathModel='/home/mjacquar/TP4b/model'	# https://medium.com/@harsz89/persist-reuse-trained-machine-learning-models-using-joblib-or-pickle-in-python-76f7e4fd707
-joblib.dump(model,f'{pathModel}/bdt_model.pkl')		# Save trained model for later
-
-print("Model saved")
-#Use it to predict
+# Use it to predict y values on X_test sample
 y_pred=model.predict_proba(X_test[features])[:,1]
-print("Predictions done")
+
+
 fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
 auc = auc(fpr, tpr) 								# Use built in fct to compute area under curve
 print(f'Auc={auc}')
@@ -51,8 +42,5 @@ plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
 plt.xlabel('True positive rate')
 plt.ylabel('1-False positive rate')
 plt.legend()
-plt.savefig(f'plots/roc.pdf')
+plt.savefig(f'plots/rocAna.pdf')
 plt.close()
-
-
-#print to compute time, worth to save?
