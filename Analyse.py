@@ -10,7 +10,7 @@ pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']
 print("csv loaded")
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) #random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=34) # est_size=0.3, train_size=0.7. random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
 
 features = ['B_s0_TAU',				# B lifetime
 			'MIN_IPCHI2_emu',		# Minimum on the two impact parameters chi2, large if signal (comes from secondary vertex)
@@ -26,21 +26,38 @@ features = ['B_s0_TAU',				# B lifetime
 
 #  Retrive model
 pathModel='/home/mjacquar/TP4b/model'
-model = joblib.load(f'{pathModel}/bdt_model.pkl')
 
-# Use it to predict y values on X_test sample
-y_pred=model.predict_proba(X_test[features])[:,1]
+valuesDepth=[1,2,3,4,5,6,7,8,9,10]
+aucDepth=[]
+for depth in valuesDepth:
+	model = joblib.load(f'{pathModel}/bdt{depth}_model.pkl')
+
+	# Use it to predict y values on X_test sample
+	y_pred=model.predict_proba(X_test[features])[:,1]
 
 
-fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
-auc = auc(fpr, tpr) 								# Use built in fct to compute area under curve
-print(f'Auc={auc}')
+	fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
+	aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
+	print(f'Depth= {depth}, Auc={aucValue}')
+	aucDepth.append(aucValue)
+
+nonBiased=[0.9694694238382793,0.9752754910380111,0.978709794734407,0.9826026459068448,0.9844838818924959,0.9860500966700275,0.9869476553904142,0.987378132074234,0.9866472542841878,0.985312914806173]
+
+plt.figure(figsize=(8, 8), dpi=300)
+plt.plot(valuesDepth,aucDepth,'.',label=f'Biased')
+plt.plot(valuesDepth,nonBiased,'.',label=f'Non biased')
+plt.xlabel('Tree depth')
+plt.ylabel('Auc')
+plt.legend()
+plt.savefig(f'plots/aucDepthBIASED.pdf')
+plt.close()
+
 
 # Plot the result:
-plt.figure(figsize=(8, 8), dpi=300)
-plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
-plt.xlabel('True positive rate')
-plt.ylabel('1-False positive rate')
-plt.legend()
-plt.savefig(f'plots/rocAna.pdf')
-plt.close()
+# plt.figure(figsize=(8, 8), dpi=300)
+# plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
+# plt.xlabel('True positive rate')
+# plt.ylabel('1-False positive rate')
+# plt.legend()
+# plt.savefig(f'plots/rocAnaBiased.pdf')
+# plt.close()
