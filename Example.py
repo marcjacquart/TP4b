@@ -6,8 +6,8 @@ import numpy as np
 
 
 # Settings to chose:
-importCSV=False
-plotCorrelation=False
+importCSV=True
+plotCorrelation=True
 plotVar=False
 
 if plotCorrelation:
@@ -134,26 +134,26 @@ else:
 if plotCorrelation:
 	corr = X_data.corr() 										# Compute the correlation matrix
 	mask = np.triu(np.ones_like(corr, dtype=bool))				# Generate a mask for the upper triangle
-	f, ax = plt.subplots(figsize=(16, 13)) 						# Set up the matplotlib figure
+	f, ax = plt.subplots(figsize=(16, 13),dpi=500) 						# Set up the matplotlib figure
 	cmap = sns.diverging_palette(230, 20, as_cmap=True)			# Generate a custom diverging colormap
 	sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3, center=0, 	# Draw the heatmap with the mask and correct aspect ratio
 	            square=True, linewidths=.5, cbar_kws={"shrink": .5})
-	plt.savefig('plots/correlation_X_data.pdf')					# Save result to PDF
+	plt.savefig('plots/correlation_X_data.pdf',bbox_inches='tight')					# Save result to PDF
 	plt.close()
 
 	#Same for MC
 	corr = X_MC.corr()											# Compute the correlation matrix
 	mask = np.triu(np.ones_like(corr, dtype=bool))				# Generate a mask for the upper triangle
-	f, ax = plt.subplots(figsize=(16, 13))						# Set up the matplotlib figure
+	f, ax = plt.subplots(figsize=(16, 13),dpi=500)						# Set up the matplotlib figure
 	cmap = sns.diverging_palette(230, 20, as_cmap=True)			# Generate a custom diverging colormap
 	sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3, center=0,	# Draw the heatmap with the mask and correct aspect ratio
 	            square=True, linewidths=.5, cbar_kws={"shrink": .5})
-	plt.savefig('plots/correlation_X_MC.pdf')					# Save result to PDF
+	plt.savefig('plots/correlation_X_MC.pdf',bbox_inches='tight')					# Save result to PDF
 	plt.close()
 
 
 
-#trainingVar=['B_s0_TAU','MIN_IPCHI2_emu','B_s0_IP_OWNPV','SUM_isolation_emu','B_s0_PT','LOG1_cosDIRA','B_s0_CDFiso','MAX_PT_emu','B_s0_ENDVERTEX_CHI2','DIFF_ETA_emu']                 # Important variables from the overleaf analysis document to plot, in order
+#trainingVar=['B_s0_TAU','MIN_IPCHI2_emu','B_s0_IP_OWNPV','SUM_isolation_emu','B_s0_PT','LOG1_cosDIRA','B_s0_CDFiso','MAX_PT_emu','B_s0_ENDVERTEX_CHI2','DIFF_ETA_emu']                 # Important variables from the overleaf analysis document to plot, in order to train the model. called features
 #Plot variables in histograms and save to pdf:
 if plotVar:
 	for var in allvars:
