@@ -5,6 +5,11 @@ import joblib
 from sklearn.metrics import roc_curve, auc 	# roc: receiver operating characteristic, auc: Area under the ROC Curve
 from sklearn.model_selection import train_test_split
 from scipy.stats import ks_2samp 			# Kolmogorov–Smirnov test to compare 2 distributions
+#from scipy import stats
+
+plotAuc=False
+plotPrediction_KS=True
+plotImportance=False
 
 
 pathCSV='/home/mjacquar/TP4b/csv'
@@ -37,46 +42,83 @@ fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute: 
 aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
 
 # Plot the result: Auc
-# plt.figure(figsize=(8, 8), dpi=300)
-# plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
-# plt.xlabel('True positive rate')
-# plt.ylabel('1-False positive rate')
-# plt.legend()
-# plt.savefig(f'plots/rocAnaBiased.pdf')
-# plt.close()
+if plotAuc:
+	plt.figure(figsize=(8, 8), dpi=300)
+	plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
+	plt.xlabel('True positive rate')
+	plt.ylabel('1-False positive rate')
+	plt.legend()
+	plt.savefig(f'plots/rocAnaBiased.pdf')
+	plt.close()
+
+if plotPrediction_KS:
+	# Plot the result: y_pred
+	yTrainS=y_pred_on_train[y_train==1]															# Take values at index depending of BDT y output
+	yTrainB=y_pred_on_train[y_train==0]
+	yTestS=y_pred[y_test==1]
+	yTestB=y_pred[y_test==0]
+
+	binsTab=np.linspace(0.1, 0.9, num=41)
+	plt.figure(figsize=(8, 8), dpi=300)
+	fig, ax = plt.subplots() 																	# Want to stack histograms on top of same axes
+	ax.hist(yTrainS,  bins=binsTab, color='r',histtype='bar',density=True, alpha=0.3) 			# Adding transparency for histogram columns
+	ax.hist(yTrainB,  bins=binsTab, color='b', histtype='bar',density=True, alpha=0.3) 			# collect the results in varibles for later KS test
+	yTrainSHist = ax.hist(yTrainS,  bins=binsTab, color='r',histtype='step',density=True,label='S (train)') 	# Histogram values
+	yTrainBHist = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=True, label='B (train)') 
+	yTestSHist = plt.hist(yTestS,  bins=binsTab,density=True,alpha = 0.0)						# Invisible to collect histogram values
+	yTestBHist = plt.hist(yTestB,  bins=binsTab,density=True,alpha = 0.0)
+	bin_centers = 0.5*(binsTab[1:] + binsTab[:-1])
+	ax.scatter(bin_centers, yTestSHist[0], marker='o', c='r', s=20, alpha=1,label='S (test)') 	# Display as dot in histogram
+	ax.scatter(bin_centers, yTestBHist[0], marker='o', c='b', s=20, alpha=1,label='S (test)') 	# Must take first array for data, second one is bins values
+
+	plt.xlabel('BDT signal response')
+	plt.ylabel('Normalized number of events')
+	plt.legend()
+	plt.savefig(f'plots/yPred.pdf')
+	plt.close()
 
 
+	# Kolmogorov–Smirnov test
+	# print(yTrainSHist[0])
+	# print(yTestSHist[0])
+	# print(yTrainBHist[0])
+	# print(yTestBHist[0])
+	KSsignal=ks_2samp(yTestSHist[0], yTrainSHist[0], alternative='two-sided', mode='auto')
+	KSbackground=ks_2samp(yTrainBHist[0], yTestBHist[0], alternative='two-sided', mode='auto')
+	#KSbackgroundReverse=ks_2samp( yTestBHist[0],yTrainBHist[0], alternative='two-sided', mode='auto')
+	#KSTest=ks_2samp(yTrainSHist[0], yTestBHist[0], alternative='two-sided', mode='auto')
+	print("KS test")
+	print(f'Train and Test signal: {KSsignal}')
+	print(f'Train and Test background: {KSbackground}')
 
-yTrainS=y_pred_on_train[y_train==1]
-yTrainB=y_pred_on_train[y_train==0]
-yTestS=y_pred[y_test==1]
-yTestB=y_pred[y_test==0]
-# lenyTrainS=len(yTrainS)
-# lenyTrainB=len(yTrainB)
-# lenyTestS=len(yTestS)
-# lenyTestB=len(yTestB)
-# Plot the result: y_pred
-binsTab=np.linspace(0.1, 0.9, num=41)
-plt.figure(figsize=(8, 8), dpi=300)
-fig, ax = plt.subplots() # Want to stack histograms on top of same axes
-ax.hist(yTrainS,  bins=binsTab, color='r',histtype='bar',density=True, alpha=0.3) 
-ax.hist(yTrainB,  bins=binsTab, color='b', histtype='bar',density=True, alpha=0.3) 
-ax.hist(yTrainS,  bins=binsTab, color='r',histtype='step',density=True,label='S (train)') 
-ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=True, label='B (train)') 
-yTestSHist = plt.hist(yTestS,  bins=binsTab,density=True,alpha = 0.0)
-#print(yTestSHist)
-yTestBHist = plt.hist(yTestB,  bins=binsTab,density=True,alpha = 0.0)
-bin_centers = 0.5*(binsTab[1:] + binsTab[:-1])
-#ax.hist(yTestS,  bins=binsTab, color='r', histtype='step',density=True, label='yTestS') 
-#ax.hist(yTestB,  bins=binsTab, color='b', histtype='step',density=True, label='yTestB')
-ax.scatter(bin_centers, yTestSHist[0], marker='o', c='r', s=20, alpha=1,label='S (test)') 
-ax.scatter(bin_centers, yTestBHist[0], marker='o', c='b', s=20, alpha=1,label='S (test)') 
+	#Test with the arrays directly:
+	print("KS test Array:")
+	KSsignalArray=ks_2samp(yTrainS,yTestS, alternative='two-sided', mode='auto')
+	KSbackgroundArray=ks_2samp(yTrainB,yTestB, alternative='two-sided', mode='auto')
+	print(f'Train and Test signal (array): {KSsignalArray}')
+	print(f'Train and Test background (array): {KSbackgroundArray}')
+	#test without normalisation
+	#yTestSFull = plt.hist(yTestS,  bins=binsTab,density=False,alpha = 0.0)						# Invisible to collect histogram values
+	#yTestBFull = plt.hist(yTestB,  bins=binsTab,density=False,alpha = 0.0)
+	# yTrainSFull = ax.hist(yTrainS,  bins=binsTab, color='r',histtype='step',density=False,alpha = 0.0) 	# Histogram values
+	# yTrainBFull = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=False, alpha = 0.0) 
+	# KSsignalFull=ks_2samp(yTestSFull[0], yTrainSFull[0], alternative='two-sided', mode='auto')
+	# KSbackgroundFull=ks_2samp(yTrainBFull[0], yTestBFull[0], alternative='two-sided', mode='auto')
+	# print(f'Train and Test signal without normalisation: {KSsignalFull}')
+	# print(f'Train and Test background without normalisation: {KSbackgroundFull}')
 
-plt.xlabel('BDT signal response')
-plt.ylabel('Normalized number of events')
-plt.legend()
-plt.savefig(f'plots/yPred.pdf')
-plt.close()
+
+if plotImportance:
+	# Plot the result: Features of importance
+	importance = model.feature_importances_
+	plt.figure(figsize=(8, 6), dpi=500)
+	plt.bar([x for x in range(len(importance))], importance)
+
+	plt.xticks(ticks = range(len(importance)) ,labels = features, rotation = 60, fontsize =7 )
+	plt.ylabel('Feature importance')
+	plt.savefig(f'plots/importance.pdf',bbox_inches='tight')
+	plt.close()
+
 
 
 # Bias difference:
