@@ -1,3 +1,10 @@
+# This script:
+#	-Train a single BDT from given hyperparameters
+#	-Plot roc curve, compute auc
+#	-Saves the model for further use
+#	-Kfolding (not finished)
+
+
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.model_selection import train_test_split 	# To use method with same name
@@ -38,7 +45,6 @@ print("model trained")
 
 pathModel='/home/mjacquar/TP4b/model'				# https://medium.com/@harsz89/persist-reuse-trained-machine-learning-models-using-joblib-or-pickle-in-python-76f7e4fd707
 joblib.dump(model,f'{pathModel}/bdt_model.pkl')		# Save trained model for later
-
 print("Model saved")
 
 
@@ -54,9 +60,7 @@ print("Model saved")
 
 
 
-
-print("Model saved")
-#Use it to predict
+#Use it to predict the test sample:
 y_pred=model.predict_proba(X_test[features])[:,1]
 print("Predictions done")
 fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample

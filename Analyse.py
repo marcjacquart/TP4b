@@ -1,3 +1,12 @@
+# This script:
+#	-Import data from csv file
+#	-Import model from given hyperparameters (trained with random seed=0 for data 70/30 split)
+#	-Use it on the test sample to plot roc curve and compute auc. 
+#	-Do Kolmogorov–Smirnov test to check if distribution between test and test are similar.
+#	-Plot histogram of y prediction for BDT response
+#	-Plot importance of variables histogram
+
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,11 +16,12 @@ from sklearn.model_selection import train_test_split
 from scipy.stats import ks_2samp 			# Kolmogorov–Smirnov test to compare 2 distributions
 #from scipy import stats
 
-plotAuc=False
+plotRoc=True
 plotPrediction_KS=True
 plotImportance=False
 
 
+# Import data:
 pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']						# 1: signal, 0: background
@@ -30,10 +40,13 @@ features = ['B_s0_TAU',				# B lifetime
 			'DIFF_ETA_emu']			# Absolute difference in pseudorapidity of emu
 
 
-#  Retrive model
-pathModel = '/home/mjacquar/TP4b/model'
-depth = 3
-model = joblib.load(f'{pathModel}/bdt{depth}_model.pkl')
+#  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
+pathModel='/home/mjacquar/TP4b/modelOpti'
+algoName = 'SAMME.R'
+maxDepth = 4
+nTrees = 500
+learningRate=0.15
+model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
 
 # Use it to predict y values on X_test sample
 y_pred=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
@@ -42,31 +55,31 @@ fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute: 
 aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
 
 # Plot the result: Auc
-if plotAuc:
+if plotRoc:
 	plt.figure(figsize=(8, 8), dpi=300)
-	plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={auc}')
+	plt.plot(tpr,1-fpr,linestyle='-',label=f'Auc={aucValue}')
 	plt.xlabel('True positive rate')
 	plt.ylabel('1-False positive rate')
 	plt.legend()
-	plt.savefig(f'plots/rocAnaBiased.pdf')
+	plt.savefig(f'plots/roc.pdf')
 	plt.close()
 
 if plotPrediction_KS:
 	# Plot the result: y_pred
-	yTrainS=y_pred_on_train[y_train==1]															# Take values at index depending of BDT y output
+	yTrainS=y_pred_on_train[y_train==1]		# Take values at index depending of BDT y output
 	yTrainB=y_pred_on_train[y_train==0]
 	yTestS=y_pred[y_test==1]
 	yTestB=y_pred[y_test==0]
 
-	binsTab=np.linspace(0.1, 0.9, num=41)
+	binsTab=np.linspace(0.1, 0.9, num=410) 	# num: number of bins for smooth histogram.
 	plt.figure(figsize=(8, 8), dpi=300)
 	fig, ax = plt.subplots() 																	# Want to stack histograms on top of same axes
 	ax.hist(yTrainS,  bins=binsTab, color='r',histtype='bar',density=True, alpha=0.3) 			# Adding transparency for histogram columns
 	ax.hist(yTrainB,  bins=binsTab, color='b', histtype='bar',density=True, alpha=0.3) 			# collect the results in varibles for later KS test
-	yTrainSHist = ax.hist(yTrainS,  bins=binsTab, color='r',histtype='step',density=True,label='S (train)') 	# Histogram values
+	yTrainSHist = ax.hist(yTrainS,  bins=binsTab, color='r', histtype='step',density=True, label='S (train)') 	# Histogram values
 	yTrainBHist = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=True, label='B (train)') 
-	yTestSHist = plt.hist(yTestS,  bins=binsTab,density=True,alpha = 0.0)						# Invisible to collect histogram values
-	yTestBHist = plt.hist(yTestB,  bins=binsTab,density=True,alpha = 0.0)
+	yTestSHist = plt.hist(yTestS,   bins=binsTab, density=True,alpha = 0.0)						# Invisible to collect histogram values
+	yTestBHist = plt.hist(yTestB,   bins=binsTab, density=True,alpha = 0.0)
 	bin_centers = 0.5*(binsTab[1:] + binsTab[:-1])
 	ax.scatter(bin_centers, yTestSHist[0], marker='o', c='r', s=20, alpha=1,label='S (test)') 	# Display as dot in histogram
 	ax.scatter(bin_centers, yTestBHist[0], marker='o', c='b', s=20, alpha=1,label='S (test)') 	# Must take first array for data, second one is bins values
@@ -79,14 +92,9 @@ if plotPrediction_KS:
 
 
 	# Kolmogorov–Smirnov test
-	# print(yTrainSHist[0])
-	# print(yTestSHist[0])
-	# print(yTrainBHist[0])
-	# print(yTestBHist[0])
 	KSsignal=ks_2samp(yTestSHist[0], yTrainSHist[0], alternative='two-sided', mode='auto')
 	KSbackground=ks_2samp(yTrainBHist[0], yTestBHist[0], alternative='two-sided', mode='auto')
-	#KSbackgroundReverse=ks_2samp( yTestBHist[0],yTrainBHist[0], alternative='two-sided', mode='auto')
-	#KSTest=ks_2samp(yTrainSHist[0], yTestBHist[0], alternative='two-sided', mode='auto')
+
 	print("KS test")
 	print(f'Train and Test signal: {KSsignal}')
 	print(f'Train and Test background: {KSbackground}')
@@ -97,15 +105,6 @@ if plotPrediction_KS:
 	KSbackgroundArray=ks_2samp(yTrainB,yTestB, alternative='two-sided', mode='auto')
 	print(f'Train and Test signal (array): {KSsignalArray}')
 	print(f'Train and Test background (array): {KSbackgroundArray}')
-	#test without normalisation
-	#yTestSFull = plt.hist(yTestS,  bins=binsTab,density=False,alpha = 0.0)						# Invisible to collect histogram values
-	#yTestBFull = plt.hist(yTestB,  bins=binsTab,density=False,alpha = 0.0)
-	# yTrainSFull = ax.hist(yTrainS,  bins=binsTab, color='r',histtype='step',density=False,alpha = 0.0) 	# Histogram values
-	# yTrainBFull = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=False, alpha = 0.0) 
-	# KSsignalFull=ks_2samp(yTestSFull[0], yTrainSFull[0], alternative='two-sided', mode='auto')
-	# KSbackgroundFull=ks_2samp(yTrainBFull[0], yTestBFull[0], alternative='two-sided', mode='auto')
-	# print(f'Train and Test signal without normalisation: {KSsignalFull}')
-	# print(f'Train and Test background without normalisation: {KSbackgroundFull}')
 
 
 if plotImportance:
@@ -118,32 +117,3 @@ if plotImportance:
 	plt.ylabel('Feature importance')
 	plt.savefig(f'plots/importance.pdf',bbox_inches='tight')
 	plt.close()
-
-
-
-# Bias difference:
-
-# valuesDepth=[1,2,3,4,5,6,7,8,9,10]
-# aucDepth=[]
-# for depth in valuesDepth:
-# 	model = joblib.load(f'{pathModel}/bdt{depth}_model.pkl')
-
-# 	# Use it to predict y values on X_test sample
-# 	y_pred=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
-
-
-# 	fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
-# 	aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
-# 	print(f'Depth= {depth}, Auc={aucValue}')
-# 	aucDepth.append(aucValue)
-
-# nonBiased=[0.9694694238382793,0.9752754910380111,0.978709794734407,0.9826026459068448,0.9844838818924959,0.9860500966700275,0.9869476553904142,0.987378132074234,0.9866472542841878,0.985312914806173]
-# plt.figure(figsize=(8, 8), dpi=300)
-# plt.plot(valuesDepth,aucDepth,'.',label=f'Biased')
-# plt.plot(valuesDepth,nonBiased,'.',label=f'Non biased')
-# plt.xlabel('Tree depth')
-# plt.ylabel('Auc')
-# plt.legend()
-# plt.savefig(f'plots/aucDepthBIASED.pdf')
-# plt.close()
-

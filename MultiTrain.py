@@ -1,3 +1,9 @@
+# This script:
+#	-Train a BDT from the instruction of the shell file
+#	-Compute auc on the 30% test sample and save it in a csv fil for the 3d plot in MultiAnalysis.py
+#	-Saves the model for further use
+
+
 from sys import argv									# To pass variables
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import AdaBoostClassifier
@@ -8,13 +14,13 @@ import numpy as np
 import joblib
 import csv 												# Write aoc result in file
 
-
+# Load csv:
 pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']
-#csv loaded
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) #random state: seed for random assignation of data in the split, done wih kFold
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) # Random state: seed for random assignation of data in the split, done wih kFold
 
 features = ['B_s0_TAU',				# B lifetime
 			'MIN_IPCHI2_emu',		# Minimum on the two impact parameters chi2, large if signal (comes from secondary vertex)
@@ -33,8 +39,8 @@ learningRate=float(argv[2])			# Must convert because argv pass the arguments as 
 maxDepth=int(argv[3])
 nTrees=int(argv[4])
 
-dt    = DecisionTreeClassifier(max_depth=maxDepth)													# Define the decision tree
-model = AdaBoostClassifier(dt, algorithm=algoName, n_estimators=nTrees, learning_rate=learningRate)	# Define the model using the decision tree
+dt    = DecisionTreeClassifier(max_depth=maxDepth)														# Define the decision tree
+model = AdaBoostClassifier(dt, algorithm=algoName, n_estimators=nTrees, learning_rate=learningRate)		# Define the model using the decision tree
 print("Model defined")
 
 model.fit(X_train[features], y_train)
@@ -50,6 +56,6 @@ print("Predictions done")
 fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
 auc = auc(fpr, tpr) 								# Use built in fct to compute area under curve
 print(f'Auc={auc}')
-with open(f'{pathCSV}/paramAuc.csv', 'a', newline='') as csvfile: #'a': append mode to not overwrite
+with open(f'{pathCSV}/paramAuc.csv', 'a', newline='') as csvfile: # 'a': append mode to not overwrite
 	spamwriter = csv.writer(csvfile, delimiter=' ')
 	spamwriter.writerow([algoName,learningRate,maxDepth,nTrees,auc])

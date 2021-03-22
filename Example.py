@@ -1,4 +1,10 @@
-#Import libraries:
+# This script:
+#	-Import or create the csv dataFile with LHC background data and MC events. Adding composition of variables (min/max/mean...)
+#	-Plot correlation between variables
+#	-Plot histogram of number of correlations to reduce number of variables given as features to the BDT
+#	-Plot all variables in histograms with Data and MC to see general shape of input
+
+
 from root_pandas import read_root
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,12 +12,12 @@ import numpy as np
 
 
 # Settings to chose:
-importCSV=True
+importCSV=True				#If false, will create a new csv file for further use
 plotCorrelation=True
 plotVar=False
 
 if plotCorrelation:
-	import seaborn as sns 				# Takes time to load, so is called only if used 
+	import seaborn as sns 	# Takes time to load, so is called only if used 
 
 pathCSV='/home/mjacquar/TP4b/csv'
 if importCSV:
@@ -56,9 +62,6 @@ else:
 	        
 	allvars.append('eventNumber')
 
-	#Display chosen variables:
-	#print(allvars) 
-
 
 	# Data path & import with variable names:
 	clusterPath="/panfs/tully/B2emu"
@@ -80,15 +83,15 @@ else:
 	#Putting togeter up and down polarity from every year for larger data sample:
 	X_data = pd.concat([X_data_2016_MU, X_data_2016_MD,X_data_2017_MU, X_data_2017_MD,X_data_2018_MU, X_data_2018_MD]) 
 	X_MC = pd.concat([X_MC_2016_MU, X_MC_2016_MD,X_MC_2017_MU, X_MC_2017_MD,X_MC_2018_MU, X_MC_2018_MD])
-
 	print("Data concatenated")
-	#Train above the target to get only noise:
-	#X_MC = X_MC.loc[(X_MC['B_s0_DTF_M'] > 5500) & (X_MC['B_s0_DTF_M'] < 6500)] # No need for MC, only signal
+
+	#Train above the target to get only noise: No need for MC, only signal
 	X_data = X_data.loc[(X_data['B_s0_DTF_M'] > 5500) & (X_data['B_s0_DTF_M'] < 6500)] 
-	print("Adding new variables:")
+
 
 
 	#Adding more variables:
+	print("Adding new variables:")
 	for df in (X_MC,X_data):
 		for var in common:
 			df[f'B_s0_max{var}']=df[[f'eplus_{var}',f'muminus_{var}']].max(axis=1)
@@ -118,7 +121,7 @@ else:
 		df['DIFF_ETA_emu']=abs(df['eplus_ETA']-df['muminus_ETA'])							  # Difference in pseudorapidity, absolute value
 		allvars.append('DIFF_ETA_emu')
 
-	X_MC['sig']= 1
+	X_MC['sig']= 1					# sig variable: 1 for signal (MC), 0 for background (LHC data)
 	X_data['sig']=0
 	print("Dataset complete")
 	
@@ -126,34 +129,79 @@ else:
 	X_MC.to_csv(f'{pathCSV}/X_MC.csv')
 	X_data.to_csv(f'{pathCSV}/X_data.csv')
 
-	X =pd.concat([X_MC,X_data]) # Merge everything in 1 csv file for training
+	X =pd.concat([X_MC,X_data])		# Merge everything in 1 csv file for training
 	X.to_csv(f'{pathCSV}/X.csv')
 
 
-#Plot correlation matrix between variables: 				(from: https://seaborn.pydata.org/examples/many_pairwise_correlations.html)
+#Plot correlation matrix between variables: 						(from: https://seaborn.pydata.org/examples/many_pairwise_correlations.html)
 if plotCorrelation:
-	corr = X_data.corr() 										# Compute the correlation matrix
-	mask = np.triu(np.ones_like(corr, dtype=bool))				# Generate a mask for the upper triangle
-	f, ax = plt.subplots(figsize=(16, 13),dpi=500) 						# Set up the matplotlib figure
-	cmap = sns.diverging_palette(230, 20, as_cmap=True)			# Generate a custom diverging colormap
-	sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3, center=0, 	# Draw the heatmap with the mask and correct aspect ratio
+	X_data=X_data.drop(columns=['Unnamed: 0','sig']) 				# Drop first and last column. axis: drop labels from the index (0 or ‘index’) or columns (1 or ‘columns’)
+	#print (X_data)
+	corrData = X_data.corr() 	
+	#print(corrData)									# Compute the correlation matrix
+	mask = np.triu(np.ones_like(corrData, dtype=bool))				# Generate a mask for the upper triangle
+	f, ax = plt.subplots(figsize=(16, 13),dpi=500) 					# Set up the matplotlib figure
+	cmap = sns.diverging_palette(230, 20, as_cmap=True)				# Generate a custom diverging colormap
+	sns.heatmap(corrData, mask=mask, cmap=cmap, center=0, 			# Draw the heatmap with the mask and correct aspect ratio
 	            square=True, linewidths=.5, cbar_kws={"shrink": .5})
-	plt.savefig('plots/correlation_X_data.pdf',bbox_inches='tight')					# Save result to PDF
+	plt.savefig('plots/correlation_X_data.pdf',bbox_inches='tight')	# Save result to PDF
 	plt.close()
 
 	#Same for MC
-	corr = X_MC.corr()											# Compute the correlation matrix
-	mask = np.triu(np.ones_like(corr, dtype=bool))				# Generate a mask for the upper triangle
-	f, ax = plt.subplots(figsize=(16, 13),dpi=500)						# Set up the matplotlib figure
-	cmap = sns.diverging_palette(230, 20, as_cmap=True)			# Generate a custom diverging colormap
-	sns.heatmap(corr, mask=mask, cmap=cmap, vmax=.3, center=0,	# Draw the heatmap with the mask and correct aspect ratio
+	X_MC=X_MC.drop(['Unnamed: 0','sig'],axis=1) 					# Drop first and last column.
+	corrMC = X_MC.corr()											# Compute the correlation matrix
+	mask = np.triu(np.ones_like(corrMC, dtype=bool))				# Generate a mask for the upper triangle
+	f, ax = plt.subplots(figsize=(16, 13),dpi=500)					# Set up the matplotlib figure
+	cmap = sns.diverging_palette(230, 20, as_cmap=True)				# Generate a custom diverging colormap
+	sns.heatmap(corrMC, mask=mask, cmap=cmap, center=0,				# Draw the heatmap with the mask and correct aspect ratio 
 	            square=True, linewidths=.5, cbar_kws={"shrink": .5})
-	plt.savefig('plots/correlation_X_MC.pdf',bbox_inches='tight')					# Save result to PDF
+	plt.savefig('plots/correlation_X_MC.pdf',bbox_inches='tight')	# Save result to PDF
 	plt.close()
 
 
 
-#trainingVar=['B_s0_TAU','MIN_IPCHI2_emu','B_s0_IP_OWNPV','SUM_isolation_emu','B_s0_PT','LOG1_cosDIRA','B_s0_CDFiso','MAX_PT_emu','B_s0_ENDVERTEX_CHI2','DIFF_ETA_emu']                 # Important variables from the overleaf analysis document to plot, in order to train the model. called features
+	# Detect high correlation: Do it in a function to use it again with the reducted set of variables
+	def computeCorr(corrData,corrMC,allVarHeaders, outputFilename):
+		indexCorrData=np.zeros(len(allVarHeaders))
+		indexCorrMC=np.zeros(len(allVarHeaders))
+		corrTreshold=0.9
+
+		for i in range(len(corrData.columns)):
+			for j in range(len(corrData.columns)):
+				if (i<j) & (abs(corrData.iloc[i,j])>corrTreshold): # iloc: return value in pandas data frame
+					indexCorrData[i]+=1
+					indexCorrData[j]+=1
+				if (i<j) & (abs(corrMC.iloc[i,j])>corrTreshold):
+					indexCorrMC[i]+=1
+					indexCorrMC[j]+=1
+		corrDf=pd.DataFrame([allVarHeaders,indexCorrData,indexCorrMC],index=['varName','corrData','corrMC']) # Put results in  dataframe
+		corrDf=corrDf.transpose()
+
+		# Plot result on histogram:
+		plt.figure(figsize=(10, 5), dpi=500)
+		plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrData'],color='b', label='Data')			# Plot Data and MC on the same histogram using alpha trensparency for the one on top
+		plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrMC'],  color='r', label='MC', alpha=0.7) 	# df.shape[0]: number of df rows
+		plt.xticks(ticks = range(corrDf.shape[0]) ,labels = corrDf['varName'], rotation = 90, fontsize =8 )
+		plt.legend()
+		plt.ylabel('Number of correlation with other variables')
+		plt.savefig(f'plots/{outputFilename}.pdf',bbox_inches='tight')
+		plt.close()
+
+	allVarHeaders=list(X_data.columns.values)
+	computeCorr(corrData,corrMC,allVarHeaders, 'correlationVariables') 			# Computation with all variables
+
+	# Getting rid of too correlated variables:
+	tooCorrelated =['B_s0_P', 'B_s0_sumP','B_s0_maxP','B_s0_sumETA','B_s0_minETA','B_s0_absdiffIP_OWNPV','muminus_IPCHI2_OWNPV','B_s0_FD_OWNPV','eplus_P','B_s0_sumIP_OWNPV','MAX_PT_emu','B_s0_sumIPCHI2_OWNPV','B_s0_ETA'] # Must delete too corelated ones, we don't want two variables describing the same thing for training.
+	newCorrData=corrData 														# Reduce correlation matrix
+	newCorrData=newCorrData.drop(columns=tooCorrelated)
+	newCorrData=newCorrData.drop(index=tooCorrelated)
+	newCorrMC=corrMC 															# Same for MC
+	newCorrData=newCorrMC.drop(columns=tooCorrelated)
+	newCorrMC=newCorrMC.drop(index=tooCorrelated)
+	features = [x for x in allVarHeaders if x not in tooCorrelated]
+	computeCorr(newCorrData,newCorrMC,features,'correlationVariablesSelection') # Computation with less variables
+	
+
 #Plot variables in histograms and save to pdf:
 if plotVar:
 	for var in allvars:
