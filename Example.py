@@ -135,7 +135,7 @@ else:
 
 #Plot correlation matrix between variables: 						(from: https://seaborn.pydata.org/examples/many_pairwise_correlations.html)
 if plotCorrelation:
-	X_data=X_data.drop(columns=['Unnamed: 0','sig']) 				# Drop first and last column. axis: drop labels from the index (0 or ‘index’) or columns (1 or ‘columns’)
+	X_data=X_data.drop(columns=['Unnamed: 0','sig','eventNumber']) 	# Drop uninteresting variables column. axis: drop labels from the index (0 or ‘index’) or columns (1 or ‘columns’)
 	#print (X_data)
 	corrData = X_data.corr() 	
 	#print(corrData)									# Compute the correlation matrix
@@ -148,7 +148,7 @@ if plotCorrelation:
 	plt.close()
 
 	#Same for MC
-	X_MC=X_MC.drop(['Unnamed: 0','sig'],axis=1) 					# Drop first and last column.
+	X_MC=X_MC.drop(['Unnamed: 0','sig','eventNumber'],axis=1) 		# Drop uninteresting variables column.
 	corrMC = X_MC.corr()											# Compute the correlation matrix
 	mask = np.triu(np.ones_like(corrMC, dtype=bool))				# Generate a mask for the upper triangle
 	f, ax = plt.subplots(figsize=(16, 13),dpi=500)					# Set up the matplotlib figure
@@ -159,49 +159,74 @@ if plotCorrelation:
 	plt.close()
 
 
+	tooCorrelated =[] 	# Must delete too corelated ones, we don't want two variables describing the same thing for training. # 'B_s0_P', 'B_s0_sumP','B_s0_maxP','B_s0_sumETA','B_s0_minETA','B_s0_absdiffIP_OWNPV','muminus_IPCHI2_OWNPV','B_s0_FD_OWNPV','eplus_P','B_s0_sumIP_OWNPV','MAX_PT_emu','B_s0_sumIPCHI2_OWNPV','B_s0_ETA', 'eplus_ETA', 'muminus_ETA','B_s0_IP_OWNPV','eplus_IP_OWNPV','muminus_IP_OWNPV'
 
 	# Detect high correlation: Do it in a function to use it again with the reducted set of variables
-	def computeCorr(corrData,corrMC,allVarHeaders, outputFilename):
-		indexCorrData=np.zeros(len(allVarHeaders))
-		indexCorrMC=np.zeros(len(allVarHeaders))
-		corrTreshold=0.9
+	def computeCorr(corrData,corrMC,tooCorrelated,featuresList, outputFilename, plot):
+		#print(f'Test length: corrData={len(corrData)}, corrMC={len(corrMC)}, featuresList={len(featuresList)}. ') # Length ok
+		indexCorrData=np.zeros(len(featuresList))
+		indexCorrMC=np.zeros(len(featuresList))
+		corrTreshold=0.5
 
-		for i in range(len(corrData.columns)):
-			for j in range(len(corrData.columns)):
+		for i in range(len(featuresList)):
+			for j in range(len(featuresList)):
 				if (i<j) & (abs(corrData.iloc[i,j])>corrTreshold): # iloc: return value in pandas data frame
 					indexCorrData[i]+=1
 					indexCorrData[j]+=1
 				if (i<j) & (abs(corrMC.iloc[i,j])>corrTreshold):
 					indexCorrMC[i]+=1
 					indexCorrMC[j]+=1
-		corrDf=pd.DataFrame([allVarHeaders,indexCorrData,indexCorrMC],index=['varName','corrData','corrMC']) # Put results in  dataframe
+		corrDf=pd.DataFrame([featuresList,indexCorrData,indexCorrMC],index=['varName','corrData','corrMC']) # Put results in  dataframe
 		corrDf=corrDf.transpose()
+		if plot:
+			# Plot result on histogram:
+			plt.figure(figsize=(10, 5), dpi=500)
+			plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrData'],color='b', label='Data')			# Plot Data and MC on the same histogram using alpha trensparency for the one on top
+			plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrMC'],  color='r', label='MC', alpha=0.7) 	# df.shape[0]: number of df rows
+			plt.xticks(ticks = range(corrDf.shape[0]) ,labels = corrDf['varName'], rotation = 90, fontsize =8 )
+			plt.legend()
+			plt.ylabel('Number of correlation with other variables')
+			plt.savefig(f'plots/{outputFilename}.pdf',bbox_inches='tight')
+			plt.close()
+		return indexCorrData, indexCorrMC
 
-		# Plot result on histogram:
-		plt.figure(figsize=(10, 5), dpi=500)
-		plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrData'],color='b', label='Data')			# Plot Data and MC on the same histogram using alpha trensparency for the one on top
-		plt.bar([x for x in range(corrDf.shape[0])], corrDf['corrMC'],  color='r', label='MC', alpha=0.7) 	# df.shape[0]: number of df rows
-		plt.xticks(ticks = range(corrDf.shape[0]) ,labels = corrDf['varName'], rotation = 90, fontsize =8 )
-		plt.legend()
-		plt.ylabel('Number of correlation with other variables')
-		plt.savefig(f'plots/{outputFilename}.pdf',bbox_inches='tight')
-		plt.close()
+	allVarHeaders=list(X_data.columns.values) # Same as in MC (verified with ==)
 
-	allVarHeaders=list(X_data.columns.values)
-	computeCorr(corrData,corrMC,allVarHeaders, 'correlationVariables') 			# Computation with all variables
+
+	#print(allVarHeaders)
+	computeCorr(corrData,corrMC,tooCorrelated,allVarHeaders, 'correlationVariables',True) 	# Computation with all variables
 
 	# Getting rid of too correlated variables:
-	tooCorrelated =['B_s0_P', 'B_s0_sumP','B_s0_maxP','B_s0_sumETA','B_s0_minETA','B_s0_absdiffIP_OWNPV','muminus_IPCHI2_OWNPV','B_s0_FD_OWNPV','eplus_P','B_s0_sumIP_OWNPV','MAX_PT_emu','B_s0_sumIPCHI2_OWNPV','B_s0_ETA'] # Must delete too corelated ones, we don't want two variables describing the same thing for training.
-	newCorrData=corrData 														# Reduce correlation matrix
-	newCorrData=newCorrData.drop(columns=tooCorrelated)
-	newCorrData=newCorrData.drop(index=tooCorrelated)
-	newCorrMC=corrMC 															# Same for MC
-	newCorrData=newCorrMC.drop(columns=tooCorrelated)
-	newCorrMC=newCorrMC.drop(index=tooCorrelated)
-	features = [x for x in allVarHeaders if x not in tooCorrelated]
-	computeCorr(newCorrData,newCorrMC,features,'correlationVariablesSelection') # Computation with less variables
 	
+	maxCorr=1 			# Max value of correlation for both MC and data. Continue to eliminate varibles while > 0
+	nStop=100
+	n=0
+	while (maxCorr>0) and (n<nStop):
+		#print(tooCorrelated)
+		#print(n)
+		n+=1														# Conter to avoid infinite loop
+		newCorrData=corrData 										# Reduce correlation matrix
+		newCorrData=newCorrData.drop(columns=tooCorrelated)
+		newCorrData=newCorrData.drop(index=tooCorrelated)
+		newCorrMC=corrMC 											# Same for MC
+		newCorrMC=newCorrMC.drop(columns=tooCorrelated)
+		newCorrMC=newCorrMC.drop(index=tooCorrelated)
+		features = [x for x in allVarHeaders if x not in tooCorrelated]
+		#print(f'features: {features}')
+		indexCorrData, indexCorrMC = computeCorr(newCorrData,newCorrMC,tooCorrelated,features,'correlationVariablesSelection',False) 	# Computation with less variables
+		maxCorr=0
+		indexMax=0
+		for i in range(len(indexCorrData)):
+			if min(indexCorrData[i],indexCorrMC[i])>maxCorr: 		# We want to delete variables correlated in both sets (Data & MC)
+				maxCorr=min(indexCorrData[i],indexCorrMC[i])
+				indexMax=i
+		print(f'i={indexMax}')
+		if maxCorr !=0:
+			print(f'Nmax corr for both: {maxCorr}')
+			print(f'Delete variable  {features[indexMax]}')
+			tooCorrelated.append(features[indexMax])
 
+	computeCorr(newCorrData,newCorrMC,tooCorrelated,features,'correlationVariablesSelection',True)		# Save final plot		
 #Plot variables in histograms and save to pdf:
 if plotVar:
 	for var in allvars:
