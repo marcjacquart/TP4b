@@ -16,8 +16,9 @@ from sklearn.model_selection import train_test_split
 from scipy.stats import ks_2samp 			# Kolmogorov–Smirnov test to compare 2 distributions
 #from scipy import stats
 
-plotRoc=True
+plotRoc=False
 plotPrediction_KS=True
+modelType='featureSelection' 		# or 'hyperScan'
 plotImportance=False
 
 
@@ -42,15 +43,38 @@ features = ['B_s0_TAU',				# B lifetime
 
 #  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
 pathModel='/home/mjacquar/TP4b/modelOpti'
-algoName = 'SAMME.R'
-maxDepth = 4
-nTrees = 500
-learningRate=0.15
-model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
+if modelType == 'hyperScan':
+	algoName = 'SAMME.R' 				# Scan parameters
+	maxDepth = 4
+	nTrees = 500
+	learningRate=0.15
+	model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
+	# Use it to predict y values on X_test sample
+	y_pred=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
+	y_pred_on_train=model.predict_proba(X_train[features])[:,1]
 
-# Use it to predict y values on X_test sample
-y_pred=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
-y_pred_on_train=model.predict_proba(X_train[features])[:,1]
+elif modelType == 'featureSelection' :
+	nSelect=18
+	model = joblib.load(f'{pathModel}/selection_3_50_0.1_{nSelect}variables.pkl') # Load Feature selection model
+	
+	# Use it to predict y values on X_test sample, need the training features (not from csv, but keep the cleaning code in case it can be useful somewhere)
+	#pathCSV='/home/mjacquar/TP4b/csv'
+	#csvList = pd.read_csv(f'{pathCSV}/paramSelection.csv',sep=' ',names=['nFeatures','Auc','featureList'])
+	#csvList= csvList.loc[csvList['nFeatures'] == nSelect] 					# Select the right values line 
+	#csvList= np.array(csvList['featureList'])								# Select the tab with the names, must be cleaned
+	#csvList= csvList[0].replace('\']','').replace('[\'','') 				# Only string with the whole tab, delete [' of the begining and '] at the end
+	#csvList=csvList.replace('\' \'',',').replace('"','').replace('\n','')	# All values in one string, separated by ,
+	#csvList=csvList.replace('\' \'',',').split(',')						# Makes a tab of all the feature names
+
+	trainFeatures=['B_s0_TAU', 'B_s0_DTF_M', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'B_s0_D1_isolation_Giampi', 'B_s0_D2_isolation_Giampi', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'B_s0_IPCHI2_OWNPV', 'eplus_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIPCHI2_OWNPV', 'MIN_IPCHI2_emu', 'LOG1_cosDIRA', 'MAX_PT_emu', 'DIFF_ETA_emu']
+	y_pred=model.predict_proba(X_test[trainFeatures])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
+	y_pred_on_train=model.predict_proba(X_train[trainFeatures])[:,1]
+
+else:																			# If wrong modelType name, display error and quit
+	print("Wrong Model Type. Must be 'hyperScan' or 'featureSelection'. Please try again.")
+	exit()
+
+
 fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
 aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
 
