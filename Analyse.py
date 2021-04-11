@@ -50,8 +50,8 @@ if modelType == 'hyperScan':
 	learningRate=0.05
 	model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
 	# Use it to predict y values on X_test sample
-	y_pred=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
-	y_pred_on_train=model.predict_proba(X_train[features])[:,1]
+	y_pred_onTest=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
+	y_pred_onTrain=model.predict_proba(X_train[features])[:,1]
 
 elif modelType == 'featureSelection' :
 	nSelect=13
@@ -67,16 +67,18 @@ elif modelType == 'featureSelection' :
 	# csvList=csvList.replace('\' \'',',').split(',')						# Makes a tab of all the feature names
 	# print(csvList)
 	trainFeatures=['B_s0_TAU', 'B_s0_DTF_M', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'B_s0_D1_isolation_Giampi', 'B_s0_D2_isolation_Giampi', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'B_s0_IPCHI2_OWNPV', 'eplus_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIPCHI2_OWNPV', 'MIN_IPCHI2_emu', 'LOG1_cosDIRA', 'MAX_PT_emu', 'DIFF_ETA_emu']
-	y_pred=model.predict_proba(X_test[trainFeatures])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
-	y_pred_on_train=model.predict_proba(X_train[trainFeatures])[:,1]
+	y_pred_onTest=model.predict_proba(X_test[trainFeatures])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
+	y_pred_onTrain=model.predict_proba(X_train[trainFeatures])[:,1]
 
 else:																			# If wrong modelType name, display error and quit
 	print("Wrong Model Type. Must be 'hyperScan' or 'featureSelection'. Please try again.")
 	exit()
 
+fpr, tpr, threshold = roc_curve(y_test, y_pred_onTest) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
+aucValue = auc(fpr, tpr) 								# Use built in fct to compute area under curve
 
-fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
-aucValue = auc(fpr, tpr) 							# Use built in fct to compute area under curve
+
+
 
 # Plot the result: Auc
 if plotRoc:
@@ -88,34 +90,57 @@ if plotRoc:
 	plt.savefig(f'plots/roc.pdf')
 	plt.close()
 
+#				Known result 	 Predicted results			  Want to plot?	 For Multianalysis 	for pdf save
+def predictionY_interval(y_train, y_test, y_pred_onTrain,y_pred_onTest, plotResult,   computeInterval,    pdfName='yPred'): #Function form to use in Multianalysis
+	yTrainS=y_pred_onTrain[y_train==1]		# Take values at index depending of BDT y output
+	yTrainB=y_pred_onTrain[y_train==0]
+	yTestS=y_pred_onTest[y_test==1]
+	yTestB=y_pred_onTest[y_test==0]
+
+	binsTab=np.linspace(0, 1, num=201) 	# num: number of bins for smooth histogram.
+	if plotResult:
+		plt.figure(figsize=(8, 8), dpi=300)
+		fig, ax = plt.subplots() 																	# Want to stack histograms on top of same axes
+		ax.hist(yTrainS,  bins=binsTab, color='r',histtype='bar',density=True, alpha=0.3) 			# Adding transparency for histogram columns
+		ax.hist(yTrainB,  bins=binsTab, color='b', histtype='bar',density=True, alpha=0.3) 			# collect the results in varibles for later KS test
+		yTrainSHist = ax.hist(yTrainS,  bins=binsTab, color='r', histtype='step',density=True, label='Sig (train)') 	# Histogram values
+		yTrainBHist = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=True, label='Bg (train)') 
+		yTestSHist = plt.hist(yTestS,   bins=binsTab, density=True,alpha = 0.0)						# Invisible to collect histogram values
+		yTestBHist = plt.hist(yTestB,   bins=binsTab, density=True,alpha = 0.0)
+		bin_centers = 0.5*(binsTab[1:] + binsTab[:-1])
+		ax.scatter(bin_centers, yTestSHist[0], marker='o', c='r', s=20, alpha=1,label='Sig (test)') 	# Display as dot in histogram
+		ax.scatter(bin_centers, yTestBHist[0], marker='o', c='b', s=20, alpha=1,label='Bg (test)') 	# Must take first array for data, second one is bins values
+
+		plt.xlabel('BDT signal response')
+		plt.ylabel('Normalized number of events')
+		plt.legend()
+		plt.savefig(f'plots/{pdfName}.pdf')
+		plt.close()	
+	if computeInterval:
+		numberBins=201
+		errorMax=2*(1/(numberBins-1))
+		binsTab=np.linspace(0, 1, num=numberBins)
+		
+		yTestSHist=np.histogram(yTestS,bins=binsTab,density=False) #Density=True to normalise, not necessary here we just want the max
+		yTestBHist=np.histogram(yTestB,bins=binsTab,density=False)
+		maxS=np.argmax(yTestSHist[0]) #first tab is the histogram values, second is the bins values on axis
+		maxB=np.argmax(yTestBHist[0])
+		interval=abs(binsTab[maxS]-binsTab[maxB])
+		print(f'Interval between Signal and backgroung max in histogram: {interval} pm {errorMax}')
+	else: interval=0
+	return interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist
+
 if plotPrediction_KS:
-	# Plot the result: y_pred
-	yTrainS=y_pred_on_train[y_train==1]		# Take values at index depending of BDT y output
-	yTrainB=y_pred_on_train[y_train==0]
-	yTestS=y_pred[y_test==1]
-	yTestB=y_pred[y_test==0]
+# Plot the result: y_pred
+	interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(y_train, y_test,y_pred_onTrain,y_pred_onTest, True, True,'yPred')
 
-	binsTab=np.linspace(0, 1, num=202) 	# num: number of bins for smooth histogram.
-	plt.figure(figsize=(8, 8), dpi=300)
-	fig, ax = plt.subplots() 																	# Want to stack histograms on top of same axes
-	ax.hist(yTrainS,  bins=binsTab, color='r',histtype='bar',density=True, alpha=0.3) 			# Adding transparency for histogram columns
-	ax.hist(yTrainB,  bins=binsTab, color='b', histtype='bar',density=True, alpha=0.3) 			# collect the results in varibles for later KS test
-	yTrainSHist = ax.hist(yTrainS,  bins=binsTab, color='r', histtype='step',density=True, label='Sig (train)') 	# Histogram values
-	yTrainBHist = ax.hist(yTrainB,  bins=binsTab, color='b', histtype='step',density=True, label='Bg (train)') 
-	yTestSHist = plt.hist(yTestS,   bins=binsTab, density=True,alpha = 0.0)						# Invisible to collect histogram values
-	yTestBHist = plt.hist(yTestB,   bins=binsTab, density=True,alpha = 0.0)
-	bin_centers = 0.5*(binsTab[1:] + binsTab[:-1])
-	ax.scatter(bin_centers, yTestSHist[0], marker='o', c='r', s=20, alpha=1,label='Sig (test)') 	# Display as dot in histogram
-	ax.scatter(bin_centers, yTestBHist[0], marker='o', c='b', s=20, alpha=1,label='Bg (test)') 	# Must take first array for data, second one is bins values
+# Kolmogorov–Smirnov test
 
-	plt.xlabel('BDT signal response')
-	plt.ylabel('Normalized number of events')
-	plt.legend()
-	plt.savefig(f'plots/yPred.pdf')
-	plt.close()
+	yTrainS=y_pred_onTrain[y_train==1]		# Take values at index depending of BDT y output. Will be computed twice (also in fct), but better to not add 4 return values...
+	yTrainB=y_pred_onTrain[y_train==0]
+	yTestS=y_pred_onTest[y_test==1]
+	yTestB=y_pred_onTest[y_test==0]
 
-
-	# Kolmogorov–Smirnov test
 	KSsignal=ks_2samp(yTestSHist[0], yTrainSHist[0], alternative='two-sided', mode='auto')
 	KSbackground=ks_2samp(yTrainBHist[0], yTestBHist[0], alternative='two-sided', mode='auto')
 	KStest=ks_2samp(yTestSHist[0],yTestBHist[0],alternative='two-sided', mode='auto')
@@ -135,30 +160,41 @@ if plotPrediction_KS:
 	#print(f'Train and Test background (array): {KSbackgroundArray}')
 
 	#Visual KS:
-	y=np.linspace(0.0,1.0,101)
+	#y=np.linspace(0.0,1.0,101)
 
-	testSCumul=[1/len(yTestS)*sum(map(lambda yList: yList<=yTresh,yTestS)) for yTresh in y]
-	testBCumul=[1/len(yTestB)*sum(map(lambda yList: yList<=yTresh,yTestB)) for yTresh in y] # Compute the cumulative function
+	#testSCumul=[1/len(yTestS)*sum(map(lambda yList: yList<=yTresh,yTestS)) for yTresh in y] # NOT EFFICIENT!
+	#testBCumul=[1/len(yTestB)*sum(map(lambda yList: yList<=yTresh,yTestB)) for yTresh in y] # Compute the cumulative function
 
-	trainSCumul=[1/len(yTrainS)*sum(map(lambda yList: yList<=yTresh,yTrainS)) for yTresh in y] # 2 Other distribution to chose which KS test to run in cumulDiff
-	trainBCumul=[1/len(yTrainB)*sum(map(lambda yList: yList<=yTresh,yTrainB)) for yTresh in y] 
+	#trainSCumul=[1/len(yTrainS)*sum(map(lambda yList: yList<=yTresh,yTrainS)) for yTresh in y] # 2 Other distribution to chose which KS test to run in cumulDiff
+	#trainBCumul=[1/len(yTrainB)*sum(map(lambda yList: yList<=yTresh,yTrainB)) for yTresh in y] 
+	numberBins=201
+	binsTab=np.linspace(0, 1, num=numberBins)
+	yTestSHist=np.histogram(yTestS,bins=binsTab,density=False) # Need of numpy histograms, not matplotlib Density=Fasle, normalize before cumsum
+	yTestBHist=np.histogram(yTestB,bins=binsTab,density=False)
+	yTrainSHist=np.histogram(yTrainS,bins=binsTab,density=False) 
+	yTrainBHist=np.histogram(yTrainB,bins=binsTab,density=False)
 
-	def makeKSPlot(dist1,dist2,label1,label2,outFileName):
+	testSCumul=1/len(yTestS)*np.cumsum(yTestSHist[0])
+	testBCumul=1/len(yTestB)*np.cumsum(yTestBHist[0])
+	trainSCumul=1/len(yTrainS)*np.cumsum(yTrainSHist[0])
+	trainBCumul=1/len(yTrainB)*np.cumsum(yTrainBHist[0])
+
+	def makeKSPlot(dist1,dist2,label1,label2,outFileName):		# Make the KS plot. dist1&2 must be the same size
 		cumulDiff=np.abs(np.array(dist1)-np.array(dist2))
 		maxSeparation=np.amax(cumulDiff)
 		maxSeparationIndex=np.where(cumulDiff==maxSeparation)
 		maxSeparationIndex=int(maxSeparationIndex[0]) 			# Transform in float in case multiple same separation
 		ksTextResult='{0:.4f}'.format(float(maxSeparation)) 	# 3 decimals format for caption
 		print(f'KS test manual result for {label1} and {label2}: {ksTextResult}')
-
+		yAxis=np.linspace(0.0,1.0,len(dist1))
 		fig,ax=plt.subplots()
-		ax.plot(y,dist1,color='r',label=label1)
-		ax.plot(y,dist2,color='b',label=label2)
+		ax.plot(yAxis,dist1,color='r',label=label1)
+		ax.plot(yAxis,dist2,color='b',label=label2)
 		valYMin=min(dist1[maxSeparationIndex],dist2[maxSeparationIndex])
 		valYMax=max(dist1[maxSeparationIndex],dist2[maxSeparationIndex])
 		print(f'valYMin: {valYMin}')
 		print(f'valYMax: {valYMax}')
-		plt.vlines(	x=y[maxSeparationIndex],
+		plt.vlines(	x=yAxis[maxSeparationIndex],
 					ymin=valYMin,
 					ymax=valYMax,
 					color='k',
@@ -171,13 +207,16 @@ if plotPrediction_KS:
 		plt.savefig(f'plots/{outFileName}.pdf')
 		plt.close()
 	# Make the plots with the above function:
-	makeKSPlot(testSCumul,testBCumul,'Train signal','Train background','KSplotTestSB')
-	makeKSPlot(trainSCumul,trainBCumul,'Test signal','Test background','KSplotTrainSB')
+	makeKSPlot(trainSCumul,trainBCumul,'Train signal','Train background','KSplotTrainSB')
+	makeKSPlot(testSCumul,testBCumul,'Test signal','Test background','KSplotTestSB')
 	makeKSPlot(trainBCumul,testBCumul,'Train background','Test background','KSplotB')
 	makeKSPlot(testSCumul,trainSCumul,'Test signal','Train signal','KSplotS')
 
+
+
+# Plot the result: Features of importance
 if plotImportance:
-	# Plot the result: Features of importance
+
 	importance = model.feature_importances_
 	zipValues= list(zip(features,importance))
 	orderedValues=sorted(zipValues,key=lambda x: x[1],reverse=True) # Sort by importance
