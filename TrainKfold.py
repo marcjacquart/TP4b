@@ -14,7 +14,7 @@ import joblib
 from sklearn.metrics import plot_roc_curve
 from sklearn.model_selection import StratifiedKFold
 
-existingKfold=False # Have to train the model if not existing
+existingKfold=True # Have to train the model if not existing
 
 
 # Import Data:
@@ -22,18 +22,18 @@ pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']
 print("csv loaded")
+print(X.columns)
 
-features = ['B_s0_ENDVERTEX_CHI2', 
-			'B_s0_CDFiso', 
-			'muminus_ProbNNmu', 
-			'eplus_ProbNNe', 
-			'eplus_ETA', 
+features=[  'B_s0_ENDVERTEX_CHI2',
+			'B_s0_CDFiso',
+			'eplus_ProbNNe',
+			'eplus_ETA',
 			'B_s0_IPCHI2_OWNPV',
-			'B_s0_minPT', 
+			'B_s0_minPT',
+			'muminus_ProbNNmuk',
 			'MIN_IPCHI2_emu',
-			'SUM_isolation_emu', 
-			'LOG1_cosDIRA'] 
-
+			'SUM_isolation_emu',
+			'LOG1_cosDIRA']
 # Run classifier with cross-validation and plot ROC curves
 cv = KFold(n_splits=5, random_state=0, shuffle=True) # K-fold is a Cross-validation method
 
@@ -53,19 +53,24 @@ fig, ax = plt.subplots()
 X=X[features] # Only selects features from list
 #print(X)
 for i, (train, test) in enumerate(cv.split(X, y)):
+	print(f'loop {i}')
 	#print(train)
 	#print(test)
-	#if not existingKfold:
-	model.fit(X.iloc[train], y.iloc[train])
-	joblib.dump(model,f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth_Kfold{i}.pkl')		# Save trained model for later
+	if existingKfold:
+		model=joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth_Kfold{i}.pkl')
+	else:
+		model.fit(X.iloc[train], y.iloc[train])
+		joblib.dump(model,f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth_Kfold{i}.pkl')		# Save trained model for later
+
 	viz = plot_roc_curve(model, X.iloc[test], y.iloc[test],
-							name='ROC fold {}'.format(i),
-							alpha=0.3, lw=1, ax=ax)
+							name=f'ROC fold {i}:', #, AUC={roc_auc:0.4f}
+							alpha=0.6, lw=1, ax=ax)
 			
 	interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
 	interp_tpr[0] = 0.0
 	tprs.append(interp_tpr)
 	aucs.append(viz.roc_auc)
+	print(aucs)
 
 ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
         label='Chance', alpha=.8)
@@ -75,7 +80,7 @@ mean_tpr[-1] = 1.0
 mean_auc = auc(mean_fpr, mean_tpr)
 std_auc = np.std(aucs)
 ax.plot(mean_fpr, mean_tpr, color='b',
-		label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),
+		label=r'Mean ROC (AUC = %0.4f $\pm$ %0.4f)' % (mean_auc, std_auc),
 		lw=2, alpha=.8)
 
 std_tpr = np.std(tprs, axis=0)

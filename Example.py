@@ -51,7 +51,7 @@ else:
 	#Fill the tab "allvars" with variable names:
 	allvars=[]
 	for var in Bvars:
-	    allvars.append(f'B_s0_{var}') #f string: python format: https://realpython.com/python-f-strings/
+	    allvars.append(f'B_s0_{var}')	 # f string: python format: https://realpython.com/python-f-strings/
 	for var in muvars:
 	    allvars.append(f'muminus_{var}')
 	for var in evars:
@@ -115,11 +115,11 @@ else:
 		df['LOG1_cosDIRA']=np.log(1-df['B_s0_BPVDIRA'])										  # log(1-cos(DIRA))
 		allvars.append('LOG1_cosDIRA')
 
-		df['MAX_PT_emu']=np.maximum(df['eplus_PT'],df['muminus_PT'])						  # Max of daughter P_T
-		allvars.append('MAX_PT_emu')
+		#df['MAX_PT_emu']=np.maximum(df['eplus_PT'],df['muminus_PT'])						  # Max of daughter P_T. Already describe by B_0_maxPT
+		#allvars.append('MAX_PT_emu')
 
-		df['DIFF_ETA_emu']=abs(df['eplus_ETA']-df['muminus_ETA'])							  # Difference in pseudorapidity, absolute value
-		allvars.append('DIFF_ETA_emu')
+		#df['DIFF_ETA_emu']=abs(df['eplus_ETA']-df['muminus_ETA'])							  # Difference in pseudorapidity, absolute value, already described by B_s0_absdiffETA
+		#allvars.append('DIFF_ETA_emu')
 
 	X_MC['sig']= 1					# sig variable: 1 for signal (MC), 0 for background (LHC data)
 	X_data['sig']=0
@@ -131,10 +131,12 @@ else:
 
 	X =pd.concat([X_MC,X_data])		# Merge everything in 1 csv file for training
 	X.to_csv(f'{pathCSV}/X.csv')
+	print("Dataset saved")
 
 
 #Plot correlation matrix between variables: 						(from: https://seaborn.pydata.org/examples/many_pairwise_correlations.html)
 if plotCorrelation:
+	print(X_data.columns)
 	X_data=X_data.drop(columns=['Unnamed: 0','sig','eventNumber']) 	# Drop uninteresting variables column. axis: drop labels from the index (0 or ‘index’) or columns (1 or ‘columns’)
 	#print (X_data)
 	corrData = X_data.corr() 	
@@ -159,8 +161,9 @@ if plotCorrelation:
 	plt.close()
 
 
-	tooCorrelated =[] 	# Must delete too corelated ones, we don't want two variables describing the same thing for training. # 'B_s0_P', 'B_s0_sumP','B_s0_maxP','B_s0_sumETA','B_s0_minETA','B_s0_absdiffIP_OWNPV','muminus_IPCHI2_OWNPV','B_s0_FD_OWNPV','eplus_P','B_s0_sumIP_OWNPV','MAX_PT_emu','B_s0_sumIPCHI2_OWNPV','B_s0_ETA', 'eplus_ETA', 'muminus_ETA','B_s0_IP_OWNPV','eplus_IP_OWNPV','muminus_IP_OWNPV'
-
+	tooCorrelated =['B_s0_DTF_M','muminus_ProbNNmu','B_s0_D2_isolation_Giampi','B_s0_D1_isolation_Giampi', 'muminus_ProbNNk', 'eplus_ProbNNe','muminus_ProbNNmuk'] 	# Must delete too corelated ones, we don't want two variables describing the same thing for training. Other cuts: 'B_s0_D1_isolation_Giampi','B_s0_D2_isolation_Giampi','muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe','muminus_ProbNNmuk'
+	#					  ^------------------------------------------------------------------ We don't want to train the model on the mass since the artificial cut on the B0 mass to have only background data introduce a selection bias. We delete it first. Then both isolation will try to be replaced by the sum.
+	
 	# Detect high correlation: Do it in a function to use it again with the reducted set of variables
 	def computeCorr(corrData,corrMC,tooCorrelated,featuresList, outputFilename, plot):
 		#print(f'Test length: corrData={len(corrData)}, corrMC={len(corrMC)}, featuresList={len(featuresList)}. ') # Length ok
@@ -215,18 +218,27 @@ if plotCorrelation:
 		#print(f'features: {features}')
 		indexCorrData, indexCorrMC = computeCorr(newCorrData,newCorrMC,tooCorrelated,features,'correlationVariablesSelection',False) 	# Computation with less variables
 		maxCorr=0
+		maxCorrMC=0
 		indexMax=0
 		for i in range(len(indexCorrData)):
 			if min(indexCorrData[i],indexCorrMC[i])>maxCorr: 		# We want to delete variables correlated in both sets (Data & MC)
 				maxCorr=min(indexCorrData[i],indexCorrMC[i])
+				maxCorrMC=indexCorrMC[i]
 				indexMax=i
-		print(f'i={indexMax}')
+			if (min(indexCorrData[i],indexCorrMC[i])==maxCorr) and (indexCorrMC[i]>maxCorrMC): # In caase of a tie, MC is more important: we throw the one with most corelated MC part
+				maxCorr=min(indexCorrData[i],indexCorrMC[i])
+				maxCorrMC=indexCorrMC[i]
+				indexMax=i
+		#print(f'i={indexMax}')
 		if maxCorr !=0:
 			print(f'Nmax corr for both: {maxCorr}')
 			print(f'Delete variable  {features[indexMax]}')
 			tooCorrelated.append(features[indexMax])
 
-	computeCorr(newCorrData,newCorrMC,tooCorrelated,features,'correlationVariablesSelection',True)		# Save final plot		
+	computeCorr(newCorrData,newCorrMC,tooCorrelated,features,'correlationVariablesSelection',True)		# Save final plot
+	finalFeatures = [x for x in allVarHeaders if x not in tooCorrelated]
+	print(f'Final features: {finalFeatures}')
+	
 #Plot variables in histograms and save to pdf:
 if plotVar:
 	for var in allvars:

@@ -21,8 +21,8 @@ from Functions import predictionY_interval
 
 
 
-plotRoc=True
-plotPrediction_KS=True
+plotRoc=False
+plotPrediction_KS=False
 modelType='hyperScan' 		# 'featureSelection' or 'hyperScan' /!\ also change between the two sets of features
 plotImportance=True
 
@@ -33,7 +33,7 @@ y = X['sig']						# 1: signal, 0: background
 print("csv loaded")
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) # test_size=0.3, train_size=0.7. random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
 
-# features = ['B_s0_TAU',				# B lifetime
+# features = ['B_s0_TAU',			# B lifetime 		#--------/!\ OLD!---------
 # 			'MIN_IPCHI2_emu',		# Minimum on the two impact parameters chi2, large if signal (comes from secondary vertex)
 # 			'B_s0_IP_OWNPV',		# Impact parameter
 # 			'SUM_isolation_emu',	# Isolation: we want nothing in the cone around e or mu
@@ -43,16 +43,19 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_s
 # 			'MAX_PT_emu',			# B0 has high mass -> high p_T for daughter particles 
 # 			'B_s0_ENDVERTEX_CHI2',	# Quality of the reconstructed decay vertex.
 # 			'DIFF_ETA_emu']			# Absolute difference in pseudorapidity of emu
-features = ['B_s0_ENDVERTEX_CHI2', 
-			'B_s0_CDFiso', 
-			'muminus_ProbNNmu', 
-			'eplus_ProbNNe', 
-			'eplus_ETA', 
+
+features=[  'B_s0_ENDVERTEX_CHI2',
+			'B_s0_CDFiso',
+			'eplus_ProbNNe',
+			'eplus_ETA',
 			'B_s0_IPCHI2_OWNPV',
-			 'B_s0_minPT', 
-			 'MIN_IPCHI2_emu',
-			 'SUM_isolation_emu', 
-			 'LOG1_cosDIRA'] 
+			'B_s0_minPT',
+			'muminus_ProbNNmuk',
+			'MIN_IPCHI2_emu',
+			'SUM_isolation_emu',
+			'LOG1_cosDIRA']
+			
+
 
 #  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
 pathModel='/home/mjacquar/TP4b/modelOpti/HyperScanFromRFE' # Change name of folder for different scans

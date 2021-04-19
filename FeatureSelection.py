@@ -29,9 +29,9 @@ y = X['sig']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.7, train_size=0.3, random_state=0) #random state: seed for random assignation of data in the split, done wih kFold
 
 # From the selection in Example.py, 24 features selected
-features = ['B_s0_TAU', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'B_s0_D1_isolation_Giampi', 'B_s0_D2_isolation_Giampi', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'eplus_PT', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'eplus_IP_OWNPV', 'B_s0_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_absdiffPT', 'B_s0_absdiffETA', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIP_OWNPV', 'MIN_IPCHI2_emu', 'LOG1_cosDIRA']
-# with ProbNN: ['B_s0_TAU', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'eplus_PT', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'eplus_IP_OWNPV', 'B_s0_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_absdiffPT', 'B_s0_absdiffETA', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIP_OWNPV', 'MIN_IPCHI2_emu', 'SUM_isolation_emu', 'LOG1_cosDIRA']
-# without ProbNN: ['B_s0_TAU', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'eplus_PT', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'eplus_IP_OWNPV', 'B_s0_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_absdiffPT', 'B_s0_absdiffETA', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIP_OWNPV', 'MIN_IPCHI2_emu', 'SUM_isolation_emu', 'LOG1_cosDIRA']
+#features=['B_s0_TAU', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'eplus_ProbNNe', 'eplus_PT', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'eplus_IP_OWNPV', 'B_s0_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_absdiffPT', 'B_s0_absdiffETA', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIP_OWNPV', 'muminus_ProbNNmuk', 'MIN_IPCHI2_emu', 'SUM_isolation_emu', 'LOG1_cosDIRA']
+features=['B_s0_TAU', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'eplus_PT', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'eplus_IP_OWNPV', 'B_s0_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_absdiffPT', 'B_s0_absdiffETA', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIP_OWNPV', 'MIN_IPCHI2_emu', 'SUM_isolation_emu', 'LOG1_cosDIRA'] # Without PID: 
+
 nSelect = int(argv[1]) 														# For the scan. Need to convert the string to int
 dt    = DecisionTreeClassifier(max_depth=3)
 model = AdaBoostClassifier(dt, algorithm='SAMME.R', n_estimators=50, learning_rate=0.1)
@@ -53,6 +53,6 @@ aucValue = auc(fpr, tpr) 													# Use built in fct to compute area under c
 
 # Save results in csv file for later analysis:
 pathCSV='/home/mjacquar/TP4b/csv'
-with open(f'{pathCSV}/paramSelectionWithoutB0Mass.csv', 'a', newline='') as csvfile:		# 'a': append mode to not overwrite
+with open(f'{pathCSV}/paramSelectionWithoutPID.csv', 'a', newline='') as csvfile:		# 'a': append mode to not overwrite
 	spamwriter = csv.writer(csvfile, delimiter=' ')
 	spamwriter.writerow([nSelect,aucValue,finalFeatures])

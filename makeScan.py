@@ -15,6 +15,7 @@ learningRateNew2=[0.15,0.2,0.25,0.3]					# Third scan
 maxDepthNew2=[2,4,6,8]
 nTreesNew2=[100,200,500]
 
+
 def notInOld(lr,learningRate,maxD,maxDepth,nT,nTrees): # Skip already computed points from past scans
 	return not((lr in learningRate) & (maxD in maxDepth) & (nT in nTrees))
 
