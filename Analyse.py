@@ -5,6 +5,7 @@
 #	-Do Kolmogorov–Smirnov test to check if distribution between test and test are similar.
 #	-Plot histogram of y prediction for BDT response
 #	-Plot importance of variables histogram
+#	-Compute Punzi figure of merit to optimize cut value
 
 
 import pandas as pd
@@ -24,7 +25,8 @@ from Functions import predictionY_interval
 plotRoc=False
 plotPrediction_KS=False
 modelType='hyperScan' 		# 'featureSelection' or 'hyperScan' /!\ also change between the two sets of features
-plotImportance=True
+plotImportance=False
+punzi=True
 
 # Import data:
 pathCSV='/home/mjacquar/TP4b/csv'
@@ -58,16 +60,17 @@ features=[  'B_s0_ENDVERTEX_CHI2',
 
 
 #  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
-pathModel='/home/mjacquar/TP4b/modelOpti/HyperScanFromRFE' # Change name of folder for different scans
+pathModel='/home/mjacquar/TP4b/model' # Change name of folder for different scans
 if modelType == 'hyperScan':
 	algoName = 'SAMME.R' 				# Scan parameters
 	maxDepth = 3
-	nTrees = 80
-	learningRate=0.05
+	nTrees = 1000
+	learningRate=0.1
 	model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
 	# Use it to predict y values on X_test sample
 	y_pred_onTest=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
 	y_pred_onTrain=model.predict_proba(X_train[features])[:,1]
+	print('Model trained')
 
 elif modelType == 'featureSelection' :
 	nSelect=13
@@ -189,18 +192,50 @@ if plotPrediction_KS:
 	makeKSPlot(testSCumul,trainSCumul,'Test signal','Train signal','KSplotS')
 
 
+if punzi:
+	print('Punzi!')
+	def punziFigureOfMerit(Eps_S,N_background,a=3):
+		return Eps_S/(np.sqrt(N_background)+a/2)
+
+	interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
+	yBinsTab=np.linspace(0.0, 1.0, num=20001)
+	punzi=np.zeros(len(yBinsTab))
+	Eps_S=0.0
+	N_background=0.0
+	sigTot=np.sum(yTestSHist[0])
+	for i in reversed(range(len(yBinsTab)-1)): 
+		#print(f'i={i}')
+		#print(f'len(yBinsTab)={len(yBinsTab)}')	
+		#print(f'len(yTestSHist)={len(yTestSHist[0])}')				# Reverse to compute cumulative using previous ones
+		Eps_S+=yTestSHist[0][i]/sigTot					# Need to normalise for signal efficiency
+		N_background+=yTestBHist[0][i]					# No normalisation for background events
+		punzi[i]=punziFigureOfMerit(Eps_S,N_background) # Compute figure of merit
+		maxPunzi= np.max(punzi)
+		indexMax= np.argmax(punzi)
+		yMax=yBinsTab[indexMax]
+
+	fig,ax=plt.subplots(figsize=(6,4),dpi=500)
+	plt.vlines(yMax, ymin=0,ymax=maxPunzi,color='k',linewidth=1,linestyle='--')
+	ax.plot(yBinsTab,punzi,color='b',label=f'Maximum: y={"{:.4f}".format(yMax)}')
+	plt.xlim(left=0.4,right=0.7)
+	plt.xlabel('Bdt y response')
+	plt.ylabel('Punzi figure of merit (arbitrary units)')
+	plt.legend()
+	plt.savefig(f'plots/punzi.pdf',bbox_inches='tight')
+	print(f'Final sum Eps_S to check normalisation: {Eps_S}')
+	print(f'Final sum N_background to check normalisation: {N_background}')
 
 # Plot the result: Features of importance
 if plotImportance:
-
 	importance = model.feature_importances_
 	zipValues= list(zip(features,importance))
 	orderedValues=sorted(zipValues,key=lambda x: x[1],reverse=True) # Sort by importance
 	orderedFeatures,orderedImportance=(zip(*orderedValues))			# Unzip into 2 lists for plot
 
-	plt.figure(figsize=(8, 6), dpi=500)
+	plt.figure(figsize=(6, 4), dpi=500)
+
 	plt.bar([x for x in range(len(importance))], orderedImportance)
-	plt.xticks(ticks = range(len(importance)) ,labels = orderedFeatures, rotation = 60, fontsize =7 )
+	plt.xticks(ticks = range(len(importance)) ,labels = orderedFeatures, rotation = 90, fontsize =10 )
 	plt.ylabel('Feature importance')
 	plt.savefig(f'plots/importance.pdf',bbox_inches='tight')
 	plt.close()
