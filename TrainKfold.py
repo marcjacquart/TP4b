@@ -21,8 +21,8 @@ existingKfold=True # Have to train the model if not existing
 pathCSV='/home/mjacquar/TP4b/csv'
 X = pd.read_csv(f'{pathCSV}/X.csv')
 y = X['sig']
-print("csv loaded")
-print(X.columns)
+#print("csv loaded")
+#print(X.columns)
 
 features=[  'B_s0_ENDVERTEX_CHI2',
 			'B_s0_CDFiso',
@@ -34,6 +34,7 @@ features=[  'B_s0_ENDVERTEX_CHI2',
 			'MIN_IPCHI2_emu',
 			'SUM_isolation_emu',
 			'LOG1_cosDIRA']
+
 # Run classifier with cross-validation and plot ROC curves
 cv = KFold(n_splits=5, random_state=0, shuffle=True) # K-fold is a Cross-validation method
 
@@ -44,53 +45,43 @@ learningRate=0.1
 dt    = DecisionTreeClassifier(max_depth=maxDepth)														# Define the decision tree
 model = AdaBoostClassifier(dt, algorithm=algoName, n_estimators=nTrees, learning_rate=learningRate)		# Define the model using the decision tree
 
-
+fprs = []
 tprs = []
 aucs = []
+thresholds = []
 mean_fpr = np.linspace(0, 1, 100)
 pathModel='/home/mjacquar/TP4b/model/Kfold'
 fig, ax = plt.subplots()
 X=X[features] # Only selects features from list
 #print(X)
 for i, (train, test) in enumerate(cv.split(X, y)):
-	print(f'loop {i}')
-	#print(train)
-	#print(test)
+	print(i)
 	if existingKfold:
 		model=joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth_Kfold{i}.pkl')
 	else:
 		model.fit(X.iloc[train], y.iloc[train])
 		joblib.dump(model,f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth_Kfold{i}.pkl')		# Save trained model for later
-
-	viz = plot_roc_curve(model, X.iloc[test], y.iloc[test],
-							name=f'ROC fold {i}:', #, AUC={roc_auc:0.4f}
-							alpha=0.6, lw=1, ax=ax)
-			
-	interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
-	interp_tpr[0] = 0.0
-	tprs.append(interp_tpr)
-	aucs.append(viz.roc_auc)
-	print(aucs)
-
-ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+	
+	y_pred_onTest=model.predict_proba(X.iloc[test])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
+	fpr, tpr, threshold = roc_curve(y.iloc[test], y_pred_onTest) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
+	tprs.append(tpr)
+	fprs.append(fpr)
+	thresholds.append(threshold)
+	
+	aucValue = auc(fpr, tpr) 								# Use built in fct to compute area under curve
+	aucs.append(aucValue)
+	
+fig, ax = plt.subplots(figsize=(4.0,4.0), dpi=500) 
+ax.plot([1, 0], [0, 1], linestyle='--', lw=1, color='r',
         label='Chance', alpha=.8)
-
-mean_tpr = np.mean(tprs, axis=0)
-mean_tpr[-1] = 1.0
-mean_auc = auc(mean_fpr, mean_tpr)
+for i in range(len(fprs)):
+	ax.plot(tpr,1-fpr,linestyle='-',label=f'Kfold{i+1}: Auc={"{0:.4f}".format(aucs[i])}')
+mean_auc = np.mean(aucs)#auc(mean_fpr, mean_tpr)
 std_auc = np.std(aucs)
-ax.plot(mean_fpr, mean_tpr, color='b',
-		label=r'Mean ROC (AUC = %0.4f $\pm$ %0.4f)' % (mean_auc, std_auc),
-		lw=2, alpha=.8)
-
-std_tpr = np.std(tprs, axis=0)
-tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
-				label=r'$\pm$ 1 std. dev.')
-
-ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
-		title="Receiver operating characteristic example")
-ax.legend(loc="lower right")
-plt.savefig(f'plots/Kfold_bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pdf')
+ax.plot([0], [0], linestyle='--', lw=1, color='k',
+        label=f'Mean Auc: {"{0:.4f}".format(mean_auc)}±{"{0:.4f}".format(std_auc)}', alpha=0.0)
+plt.xlabel('True positive rate')
+plt.ylabel('1-False positive rate')
+plt.legend(loc='lower left')
+plt.savefig(f'plots/NewKfold_bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pdf')
 plt.close()
