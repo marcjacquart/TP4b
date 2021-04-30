@@ -15,7 +15,7 @@ import joblib
 from sklearn.metrics import roc_curve, auc 	# roc: receiver operating characteristic, auc: Area under the ROC Curve
 from sklearn.model_selection import train_test_split
 from scipy.stats import ks_2samp 			# Kolmogorov–Smirnov test to compare 2 distributions
-from Functions import predictionY_interval
+from Functions import predictionY_interval,fitBackground
 #from scipy import stats
 
 
@@ -30,7 +30,7 @@ punzi=True
 
 # Import data:
 pathCSV='/home/mjacquar/TP4b/csv'
-X = pd.read_csv(f'{pathCSV}/X.csv')
+X = pd.read_csv(f'{pathCSV}/X_bestBDT.csv')
 y = X['sig']						# 1: signal, 0: background
 print("csv loaded")
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) # test_size=0.3, train_size=0.7. random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
@@ -111,11 +111,12 @@ if plotRoc:
 
 if plotPrediction_KS:
 # Plot the result: y_pred
-	interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(y_train, y_test,y_pred_onTrain,y_pred_onTest, True, True,'yPred')
+	yBinsTab=np.linspace(0.0, 1.0, num=20001)	# num: number of bins for smooth histogram.
+	interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(yBinsTab, y_train, y_test,y_pred_onTrain,y_pred_onTest, True, True,'yPred')
 
 # Kolmogorov–Smirnov test
 
-	yTrainS=y_pred_onTrain[y_train==1]		# Take values at index depending of BDT y output. Will be computed twice (also in fct), but better to not add 4 return values...
+	yTrainS=y_pred_onTrain[y_train==1]			# Take values at index depending of BDT y output. Will be computed twice (also in fct), but better to not add 4 return values...
 	yTrainB=y_pred_onTrain[y_train==0]
 	yTestS=y_pred_onTest[y_test==1]
 	yTestB=y_pred_onTest[y_test==0]
@@ -193,32 +194,46 @@ if plotPrediction_KS:
 
 
 if punzi:
-	print('Punzi!')
+	print('Computing Punzi figure of merit...')
+
 	def punziFigureOfMerit(Eps_S,N_background,a=3):
 		return Eps_S/(np.sqrt(N_background)+a/2)
 
-	interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
-	yBinsTab=np.linspace(0.0, 1.0, num=20001)
-	punzi=np.zeros(len(yBinsTab))
-	Eps_S=0.0
-	N_background=0.0
-	sigTot=np.sum(yTestSHist[0])
-	for i in reversed(range(len(yBinsTab)-1)): 
-		#print(f'i={i}')
-		#print(f'len(yBinsTab)={len(yBinsTab)}')	
-		#print(f'len(yTestSHist)={len(yTestSHist[0])}')				# Reverse to compute cumulative using previous ones
-		Eps_S+=yTestSHist[0][i]/sigTot					# Need to normalise for signal efficiency
-		N_background+=yTestBHist[0][i]					# No normalisation for background events
-		punzi[i]=punziFigureOfMerit(Eps_S,N_background) # Compute figure of merit
-		maxPunzi= np.max(punzi)
-		indexMax= np.argmax(punzi)
-		yMax=yBinsTab[indexMax]
+	yBinsTab=np.linspace(0.5, 0.6, num=2001)
+	#interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(yBinsTab,y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
+	BDTresponse=X['BDTresponse']
+	#y Variable tells if the event is signal or background
+	totalSignalNumber=len(X['sig'][X['sig']==1])
 
-	fig,ax=plt.subplots(figsize=(6,4),dpi=500)
+
+	punzi=[]
+	for yBin in yBinsTab:
+		#print(f'yBin loop in tab: {yBin}')
+
+		XselectedSig = X[(X['BDTresponse']>=yBin) & (X['sig']==1)] 	# Building again the dataframe at every iteration is a performance tradeoff to be able to scan only a smaller portion of the BDT response
+		Eps_S=len(XselectedSig)/totalSignalNumber
+		#print(f'Eps_S={Eps_S}')
+		XselectedBg = X[(X['BDTresponse']>=yBin) & (X['sig']==0)]
+		N_background=fitBackground(XselectedBg, False)
+		punzi.append(punziFigureOfMerit(Eps_S,N_background))			# Compute figure of merit to fill tab
+
+	#sigTot=np.sum(yTestSHist[0])
+	# for i in reversed(range(len(yBinsTab)-1)): 
+	# 	#print(f'i={i}')
+	# 	#print(f'len(yBinsTab)={len(yBinsTab)}')	
+	# 	#print(f'len(yTestSHist)={len(yTestSHist[0])}')				# Reverse to compute cumulative using previous ones
+	# 	Eps_S+=yTestSHist[0][i]/sigTot					# Need to normalise for signal efficiency
+	# 	N_background+=yTestBHist[0][i]					# No normalisation for background events
+	# 	punzi[i]=punziFigureOfMerit(Eps_S,N_background) # Compute figure of merit
+	maxPunzi= np.max(punzi)
+	indexMax= np.argmax(punzi)
+	yMax=yBinsTab[indexMax]
+
+	fig,ax=plt.subplots(figsize=(4,4),dpi=500)
 	plt.vlines(yMax, ymin=0,ymax=maxPunzi,color='k',linewidth=1,linestyle='--')
 	ax.plot(yBinsTab,punzi,color='b',label=f'Maximum: y={"{:.4f}".format(yMax)}')
-	plt.xlim(left=0.4,right=0.7)
-	plt.xlabel('Bdt y response')
+	plt.xlim(left=0.45,right=0.65)
+	plt.xlabel('BDT response')
 	plt.ylabel('Punzi figure of merit (arbitrary units)')
 	plt.legend()
 	plt.savefig(f'plots/punzi.pdf',bbox_inches='tight')
