@@ -26,11 +26,15 @@ plotRoc=False
 plotPrediction_KS=False
 modelType='hyperScan' 		# 'featureSelection' or 'hyperScan' /!\ also change between the two sets of features
 plotImportance=False
+
+# /!\ trainModel must be true if anything else than punzi is calculated. False only to make punzi faster
+trainModel=False
+
 punzi=True
 
 # Import data:
 pathCSV='/home/mjacquar/TP4b/csv'
-X = pd.read_csv(f'{pathCSV}/X_bestBDT.csv')
+X = pd.read_csv(f'{pathCSV}/X_bestBDT.csv') # bestBDT file has BDTresponse column filled with response of K-folding of best BDT
 y = X['sig']						# 1: signal, 0: background
 print("csv loaded")
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, train_size=0.7, random_state=0) # test_size=0.3, train_size=0.7. random state: seed for random assignation of data in the split. Seed given so the test sample is different of training sample even after saving and reopening the bdt
@@ -58,43 +62,43 @@ features=[  'B_s0_ENDVERTEX_CHI2',
 			'LOG1_cosDIRA']
 			
 
+if trainModel:
+	#  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
+	pathModel='/home/mjacquar/TP4b/model' # Change name of folder for different scans
+	if modelType == 'hyperScan':
+		algoName = 'SAMME.R' 				# Scan parameters
+		maxDepth = 3
+		nTrees = 1000
+		learningRate=0.1
+		model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
+		# Use it to predict y values on X_test sample
+		y_pred_onTest=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
+		y_pred_onTrain=model.predict_proba(X_train[features])[:,1]
+		print('Model trained')
 
-#  Retrive model: Select with name from parameters, best .R: 5,130,0.225,// .R first: 6,100,0.15 // best SAMME: 10,1000.1
-pathModel='/home/mjacquar/TP4b/model' # Change name of folder for different scans
-if modelType == 'hyperScan':
-	algoName = 'SAMME.R' 				# Scan parameters
-	maxDepth = 3
-	nTrees = 1000
-	learningRate=0.1
-	model = joblib.load(f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl') #Load model to analyse
-	# Use it to predict y values on X_test sample
-	y_pred_onTest=model.predict_proba(X_test[features])[:,1]	# 2 values, takes first: proba to be signal
-	y_pred_onTrain=model.predict_proba(X_train[features])[:,1]
-	print('Model trained')
+	elif modelType == 'featureSelection' :
+		nSelect=13
+		model = joblib.load(f'{pathModel}/selection_3_50_0.1_{nSelect}variables.pkl') # Load Feature selection model
+		
+		# Use it to predict y values on X_test sample, need the training features (not from csv, but keep the cleaning code in case it can be useful somewhere)
+		# pathCSV='/home/mjacquar/TP4b/csv'
+		# csvList = pd.read_csv(f'{pathCSV}/paramSelection.csv',sep=' ',names=['nFeatures','Auc','featureList'])
+		# csvList= csvList.loc[csvList['nFeatures'] == nSelect] 					# Select the right values line 
+		# csvList= np.array(csvList['featureList'])								# Select the tab with the names, must be cleaned
+		# csvList= csvList[0].replace('\']','').replace('[\'','') 				# Only string with the whole tab, delete [' of the begining and '] at the end
+		# csvList=csvList.replace('\' \'',',').replace('"','').replace('\n','')	# All values in one string, separated by ,
+		# csvList=csvList.replace('\' \'',',').split(',')						# Makes a tab of all the feature names
+		# print(csvList)
+		trainFeatures=['B_s0_TAU', 'B_s0_DTF_M', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'B_s0_D1_isolation_Giampi', 'B_s0_D2_isolation_Giampi', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'B_s0_IPCHI2_OWNPV', 'eplus_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIPCHI2_OWNPV', 'MIN_IPCHI2_emu', 'LOG1_cosDIRA', 'MAX_PT_emu', 'DIFF_ETA_emu']
+		y_pred_onTest=model.predict_proba(X_test[trainFeatures])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
+		y_pred_onTrain=model.predict_proba(X_train[trainFeatures])[:,1]
 
-elif modelType == 'featureSelection' :
-	nSelect=13
-	model = joblib.load(f'{pathModel}/selection_3_50_0.1_{nSelect}variables.pkl') # Load Feature selection model
-	
-	# Use it to predict y values on X_test sample, need the training features (not from csv, but keep the cleaning code in case it can be useful somewhere)
-	# pathCSV='/home/mjacquar/TP4b/csv'
-	# csvList = pd.read_csv(f'{pathCSV}/paramSelection.csv',sep=' ',names=['nFeatures','Auc','featureList'])
-	# csvList= csvList.loc[csvList['nFeatures'] == nSelect] 					# Select the right values line 
-	# csvList= np.array(csvList['featureList'])								# Select the tab with the names, must be cleaned
-	# csvList= csvList[0].replace('\']','').replace('[\'','') 				# Only string with the whole tab, delete [' of the begining and '] at the end
-	# csvList=csvList.replace('\' \'',',').replace('"','').replace('\n','')	# All values in one string, separated by ,
-	# csvList=csvList.replace('\' \'',',').split(',')						# Makes a tab of all the feature names
-	# print(csvList)
-	trainFeatures=['B_s0_TAU', 'B_s0_DTF_M', 'B_s0_ENDVERTEX_CHI2', 'B_s0_BPVDIRA', 'B_s0_CDFiso', 'B_s0_D1_isolation_Giampi', 'B_s0_D2_isolation_Giampi', 'muminus_ProbNNmu', 'muminus_ProbNNk', 'eplus_ProbNNe', 'muminus_PT', 'eplus_ETA', 'muminus_ETA', 'B_s0_IPCHI2_OWNPV', 'eplus_IPCHI2_OWNPV', 'B_s0_minP', 'B_s0_absdiffP', 'B_s0_minPT', 'B_s0_minIP_OWNPV', 'B_s0_absdiffIPCHI2_OWNPV', 'MIN_IPCHI2_emu', 'LOG1_cosDIRA', 'MAX_PT_emu', 'DIFF_ETA_emu']
-	y_pred_onTest=model.predict_proba(X_test[trainFeatures])[:,1]						# 2 values, takes first: proba to be signal. test on the parameter list from csv file
-	y_pred_onTrain=model.predict_proba(X_train[trainFeatures])[:,1]
+	else:																			# If wrong modelType name, display error and quit
+		print("Wrong Model Type. Must be 'hyperScan' or 'featureSelection'. Please try again.")
+		exit()
 
-else:																			# If wrong modelType name, display error and quit
-	print("Wrong Model Type. Must be 'hyperScan' or 'featureSelection'. Please try again.")
-	exit()
-
-fpr, tpr, threshold = roc_curve(y_test, y_pred_onTest) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
-aucValue = auc(fpr, tpr) 								# Use built in fct to compute area under curve
+	fpr, tpr, threshold = roc_curve(y_test, y_pred_onTest) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
+	aucValue = auc(fpr, tpr) 								# Use built in fct to compute area under curve
 
 
 
@@ -199,10 +203,12 @@ if punzi:
 	def punziFigureOfMerit(Eps_S,N_background,a=3):
 		return Eps_S/(np.sqrt(N_background)+a/2)
 
-	yBinsTab=np.linspace(0.5, 0.6, num=2001)
+	yBinsTab=np.linspace(0.48, 0.53, num=201)
 	#interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(yBinsTab,y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
 	BDTresponse=X['BDTresponse']
 	#y Variable tells if the event is signal or background
+	# sig variable: 1 for signal (MC), 0 for background (LHC data)
+	X=X[((X['B_s0_DTF_M']>5500) & (X['B_s0_DTF_M']<6500) & (X['sig']==1)) |(X['sig']==0) ] # Take all background (for the fit) but only signal in the blinding window
 	totalSignalNumber=len(X['sig'][X['sig']==1])
 
 
@@ -231,8 +237,8 @@ if punzi:
 
 	fig,ax=plt.subplots(figsize=(4,4),dpi=500)
 	plt.vlines(yMax, ymin=0,ymax=maxPunzi,color='k',linewidth=1,linestyle='--')
-	ax.plot(yBinsTab,punzi,color='b',label=f'Maximum: y={"{:.4f}".format(yMax)}')
-	plt.xlim(left=0.45,right=0.65)
+	ax.plot(yBinsTab,punzi,color='b',label=f'Max: y={"{:.4f}".format(yMax)}')
+	plt.xlim(left=0.45,right=0.55)
 	plt.xlabel('BDT response')
 	plt.ylabel('Punzi figure of merit (arbitrary units)')
 	plt.legend()

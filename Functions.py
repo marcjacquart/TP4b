@@ -47,13 +47,13 @@ def monoExp(x, a, b):
 	
 	return (a * np.exp(-b * x) )
 
-def fitBackground(Xselected,printPlotFit):
+def fitBackground(XselectedBg,printPlotFit):
 	bgMin=5500
 	bgMax=6500
 	steps=21
 	massTab=np.linspace(bgMin,bgMax,steps)
 	binCenters=[0.5*(massTab[i]+massTab[i+1]) for i in range (len(massTab)-1)]
-	massB0=Xselected['B_s0_DTF_M']
+	massB0=XselectedBg['B_s0_DTF_M']
 	massHist,binEdges=np.histogram(massB0,bins=massTab,density=False)
 	#print(f'massHist:{massHist}')
 	params, paramCov = curve_fit(monoExp, binCenters, massHist,bounds=(0, [100000, 0.001]))
@@ -77,4 +77,11 @@ def fitBackground(Xselected,printPlotFit):
 
 	blindingMin=5100
 	blindingMax=5500
-	return (steps-1)/(bgMax-bgMin)*( (a/b)*(np.exp(-b*blindingMin)-np.exp(-b*blindingMax)) )#+ c*(blindingMax-blindingMin) )
+	nBgOutBlinding=len(massB0)
+	massWidth=(bgMax-bgMin)/(steps-1)
+	nBgInBlinding=(1/massWidth)*( (a/b)*(np.exp(-b*blindingMin)-np.exp(-b*blindingMax)) )#+ c*(blindingMax-blindingMin) )
+	#print(f'Rapport {nBgInBlinding/nBgOutBlinding} between Inside {nBgInBlinding} and outside bliding: {nBgOutBlinding}')
+	if nBgOutBlinding < 10:
+		nBgInBlinding=100000
+		print('Too few event to fit background (<10)')
+	return nBgInBlinding
