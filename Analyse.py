@@ -202,26 +202,38 @@ if punzi:
 
 	def punziFigureOfMerit(Eps_S,N_background,a=3):
 		return Eps_S/(np.sqrt(N_background)+a/2)
+	def dPunzi(dEps_s,dNBg,Eps_S,N_background,a=3):
+		denom=np.sqrt(N_background)+a/2
+		dPdEps=1/denom
+		dPdNBg=Eps_S/(2*np.sqrt(N_background)*denom**2)
+		return dPdEps*dEps_s+dPdNBg*dNBg
 
-	yBinsTab=np.linspace(0.48, 0.53, num=201)
+	yBinsTab=np.linspace(0.48, 0.523, num=21)
 	#interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(yBinsTab,y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
 	BDTresponse=X['BDTresponse']
 	#y Variable tells if the event is signal or background
 	# sig variable: 1 for signal (MC), 0 for background (LHC data)
-	X=X[((X['B_s0_DTF_M']>5500) & (X['B_s0_DTF_M']<6500) & (X['sig']==1)) |(X['sig']==0) ] # Take all background (for the fit) but only signal in the blinding window
+	X=X[((X['B_s0_DTF_M']>5100) & (X['B_s0_DTF_M']<5500) & (X['sig']==1)) |(X['sig']==0) ] # Take all background (for the fit) but only signal in the blinding window
 	totalSignalNumber=len(X['sig'][X['sig']==1])
 
 
 	punzi=[]
+	errPunzi=[]
 	for yBin in yBinsTab:
 		#print(f'yBin loop in tab: {yBin}')
 
 		XselectedSig = X[(X['BDTresponse']>=yBin) & (X['sig']==1)] 	# Building again the dataframe at every iteration is a performance tradeoff to be able to scan only a smaller portion of the BDT response
+		Npass=len(XselectedSig['sig'])
+		Nfail=totalSignalNumber-Npass
 		Eps_S=len(XselectedSig)/totalSignalNumber
-		#print(f'Eps_S={Eps_S}')
+		errEps_S=np.sqrt( ((Nfail**2*Npass)+(Npass**2*Nfail))/(Npass+Nfail)**4 )
+
+		print(f'Eps_S={Eps_S}, sigma: {errEps_S}')
 		XselectedBg = X[(X['BDTresponse']>=yBin) & (X['sig']==0)]
-		N_background=fitBackground(XselectedBg, False)
+		N_background,dNBg=fitBackground(XselectedBg, False)
+		print(f'N_background: {N_background}')
 		punzi.append(punziFigureOfMerit(Eps_S,N_background))			# Compute figure of merit to fill tab
+		errPunzi.append(dPunzi(dEps_s=errEps_S,dNBg=dNBg,Eps_S=Eps_S,N_background=N_background,a=3))
 
 	#sigTot=np.sum(yTestSHist[0])
 	# for i in reversed(range(len(yBinsTab)-1)): 
@@ -237,7 +249,7 @@ if punzi:
 
 	fig,ax=plt.subplots(figsize=(4,4),dpi=500)
 	plt.vlines(yMax, ymin=0,ymax=maxPunzi,color='k',linewidth=1,linestyle='--')
-	ax.plot(yBinsTab,punzi,color='b',label=f'Max: y={"{:.4f}".format(yMax)}')
+	ax.errorbar(yBinsTab,punzi,errPunzi,color='b',label=f'Max: y={"{:.4f}".format(yMax)}')
 	plt.xlim(left=0.45,right=0.55)
 	plt.xlabel('BDT response')
 	plt.ylabel('Punzi figure of merit (arbitrary units)')

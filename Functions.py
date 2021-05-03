@@ -43,26 +43,38 @@ def predictionY_interval(binsTab, y_train, y_test, y_pred_onTrain, y_pred_onTest
 	return interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist
 
 
+def bgFromExp(blindMin,blindMax,massWidth,paramExpA,paramExpB):
+	return (1/massWidth)*( (paramExpA/paramExpB)*(np.exp(-paramExpB*blindMin)-np.exp(-paramExpB*blindMax)) )
 def monoExp(x, a, b):
 	
 	return (a * np.exp(-b * x) )
 
 def fitBackground(XselectedBg,printPlotFit):
+
+	# C,D,E Normalisation factors for easier fit:
+	C=100
+	E=5500
+
+
 	bgMin=5500
 	bgMax=6500
 	steps=21
-	massTab=np.linspace(bgMin,bgMax,steps)
-	binCenters=[0.5*(massTab[i]+massTab[i+1]) for i in range (len(massTab)-1)]
+	massTab=np.linspace(bgMin,bgMax,steps)	#X axis
+
+	binCenters=[(0.5*(massTab[i]+massTab[i+1])-E)/C for i in range (len(massTab)-1)] # X axis transformaion for easier fit
 	massB0=XselectedBg['B_s0_DTF_M']
-	massHist,binEdges=np.histogram(massB0,bins=massTab,density=False)
-	#print(f'massHist:{massHist}')
-	params, paramCov = curve_fit(monoExp, binCenters, massHist,bounds=(0, [100000, 0.001]))
+	massHist,binEdges=np.histogram(massB0,bins=massTab,density=False) 	# Histogram computation
+	D=massHist[0]+1														# +1 to avoid dividing by 0
+	massHist=massHist/D 												# Histogram normilised to be ~1 at x=0
+
+	params, paramCov = curve_fit(monoExp, binCenters, massHist,bounds=([0.0,0.0], [2.0, 2.0])) # Do the easier exponential fit
 	a, b=params
-	a=float(a)
-	b=float(b)
-	
+	A=D*float(a)*np.exp(float(b)*E/C)
+	B=float(b)/C
+	dA=np.sqrt(paramCov[0][0])*D*np.exp(B*E/C)
+	dB=np.sqrt(paramCov[1][1])/C
 	#print(f'a: {a}, b: {b}, c:{c}')
-	#print(f'paramCov: {paramCov}')
+	print(f'paramCov: {paramCov}')
 	#dA, dB, dC=paramCov # Estimated covarience on parameters
 	if printPlotFit:
 		fig, ax = plt.subplots(figsize=(8, 4), dpi=300) 
@@ -79,9 +91,27 @@ def fitBackground(XselectedBg,printPlotFit):
 	blindingMax=5500
 	nBgOutBlinding=len(massB0)
 	massWidth=(bgMax-bgMin)/(steps-1)
-	nBgInBlinding=(1/massWidth)*( (a/b)*(np.exp(-b*blindingMin)-np.exp(-b*blindingMax)) )#+ c*(blindingMax-blindingMin) )
+	nBgInBlinding=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A,paramExpB=B)#+ c*(blindingMax-blindingMin) )
+	nBgcheck1=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A+dA,paramExpB=B+dB)
+	nBgcheck2=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A-dA,paramExpB=B-dB)
+	upperNBg=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A+dA,paramExpB=B-dB)
+	lowerNBg=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A-dA,paramExpB=B+dB)
+	
+	print(f'nBgInBlinding:{nBgInBlinding}')
+	print(f'upperNBg:{upperNBg}')
+	print(f'lowerNBg:{lowerNBg}')
+	print(f'nBgcheck1:{nBgcheck1}')
+	print(f'nBgcheck2:{nBgcheck2}')
+
+
+
+	if( (upperNBg<nBgcheck1)|(upperNBg<nBgcheck2)|(lowerNBg>nBgcheck1)|(lowerNBg>nBgcheck2) ):
+		print("ERROR in uncertainty computation, min/max are not extremums.")
 	#print(f'Rapport {nBgInBlinding/nBgOutBlinding} between Inside {nBgInBlinding} and outside bliding: {nBgOutBlinding}')
 	if nBgOutBlinding < 10:
 		nBgInBlinding=100000
 		print('Too few event to fit background (<10)')
-	return nBgInBlinding
+
+	errNBg=np.maximum(abs(upperNBg-nBgInBlinding),abs(nBgInBlinding-lowerNBg))
+	print(f'Background: {nBgInBlinding} pm {errNBg}')
+	return nBgInBlinding,errNBg
