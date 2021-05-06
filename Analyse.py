@@ -15,7 +15,7 @@ import joblib
 from sklearn.metrics import roc_curve, auc 	# roc: receiver operating characteristic, auc: Area under the ROC Curve
 from sklearn.model_selection import train_test_split
 from scipy.stats import ks_2samp 			# Kolmogorov–Smirnov test to compare 2 distributions
-from Functions import predictionY_interval,fitBackground
+from Functions import predictionY_interval,fitBackground,fitBackgroundTry
 #from scipy import stats
 
 
@@ -207,8 +207,9 @@ if punzi:
 		dPdEps=1/denom
 		dPdNBg=Eps_S/(2*np.sqrt(N_background)*denom**2)
 		return dPdEps*dEps_s+dPdNBg*dNBg
-
-	yBinsTab=np.linspace(0.48, 0.523, num=21)
+	yBDTMin=0.505
+	yBDTMax=0.531
+	yBinsTab=np.linspace(yBDTMin, yBDTMax, num=80)
 	#interval,yTrainSHist,yTrainBHist,yTestSHist,yTestBHist=predictionY_interval(yBinsTab,y_train, y_test,y_pred_onTrain,y_pred_onTest, False, True)	
 	BDTresponse=X['BDTresponse']
 	#y Variable tells if the event is signal or background
@@ -228,10 +229,11 @@ if punzi:
 		Eps_S=len(XselectedSig)/totalSignalNumber
 		errEps_S=np.sqrt( ((Nfail**2*Npass)+(Npass**2*Nfail))/(Npass+Nfail)**4 )
 
-		print(f'Eps_S={Eps_S}, sigma: {errEps_S}')
+		#print(f'Eps_S={Eps_S}, sigma: {errEps_S}')
 		XselectedBg = X[(X['BDTresponse']>=yBin) & (X['sig']==0)]
-		N_background,dNBg=fitBackground(XselectedBg, False)
-		print(f'N_background: {N_background}')
+		#N_background2,dNBg2=fitBackground(XselectedBg, False)
+		N_background,dNBg=fitBackgroundTry(XselectedBg, False)
+		#print(f'Diff N_background: {N_background-N_backgroundTry}')
 		punzi.append(punziFigureOfMerit(Eps_S,N_background))			# Compute figure of merit to fill tab
 		errPunzi.append(dPunzi(dEps_s=errEps_S,dNBg=dNBg,Eps_S=Eps_S,N_background=N_background,a=3))
 
@@ -239,7 +241,7 @@ if punzi:
 	# for i in reversed(range(len(yBinsTab)-1)): 
 	# 	#print(f'i={i}')
 	# 	#print(f'len(yBinsTab)={len(yBinsTab)}')	
-	# 	#print(f'len(yTestSHist)={len(yTestSHist[0])}')				# Reverse to compute cumulative using previous ones
+	# 	#print(f'len(yTestSHist)={len(yTestSHist[0])}')	# Reverse to compute cumulative using previous ones
 	# 	Eps_S+=yTestSHist[0][i]/sigTot					# Need to normalise for signal efficiency
 	# 	N_background+=yTestBHist[0][i]					# No normalisation for background events
 	# 	punzi[i]=punziFigureOfMerit(Eps_S,N_background) # Compute figure of merit
@@ -249,14 +251,14 @@ if punzi:
 
 	fig,ax=plt.subplots(figsize=(4,4),dpi=500)
 	plt.vlines(yMax, ymin=0,ymax=maxPunzi,color='k',linewidth=1,linestyle='--')
-	ax.errorbar(yBinsTab,punzi,errPunzi,color='b',label=f'Max: y={"{:.4f}".format(yMax)}')
-	plt.xlim(left=0.45,right=0.55)
+	ax.errorbar(yBinsTab,punzi,errPunzi,color='b',elinewidth=1,label=f'Max: y={"{:.4f}".format(yMax)}')
+	plt.xlim(left=yBDTMin,right=yBDTMax)
 	plt.xlabel('BDT response')
 	plt.ylabel('Punzi figure of merit (arbitrary units)')
-	plt.legend()
+	plt.legend(loc='lower left')
 	plt.savefig(f'plots/punzi.pdf',bbox_inches='tight')
-	print(f'Final sum Eps_S to check normalisation: {Eps_S}')
-	print(f'Final sum N_background to check normalisation: {N_background}')
+	#print(f'Final sum Eps_S to check normalisation: {Eps_S}')
+	#print(f'Final sum N_background to check normalisation: {N_background}')
 
 # Plot the result: Features of importance
 if plotImportance:

@@ -97,11 +97,11 @@ def fitBackground(XselectedBg,printPlotFit):
 	upperNBg=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A+dA,paramExpB=B-dB)
 	lowerNBg=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A-dA,paramExpB=B+dB)
 	
-	print(f'nBgInBlinding:{nBgInBlinding}')
-	print(f'upperNBg:{upperNBg}')
-	print(f'lowerNBg:{lowerNBg}')
-	print(f'nBgcheck1:{nBgcheck1}')
-	print(f'nBgcheck2:{nBgcheck2}')
+	#print(f'nBgInBlinding:{nBgInBlinding}')
+	#print(f'upperNBg:{upperNBg}')
+	#print(f'lowerNBg:{lowerNBg}')
+	#print(f'nBgcheck1:{nBgcheck1}')
+	#print(f'nBgcheck2:{nBgcheck2}')
 
 
 
@@ -111,6 +111,79 @@ def fitBackground(XselectedBg,printPlotFit):
 	if nBgOutBlinding < 10:
 		nBgInBlinding=100000
 		print('Too few event to fit background (<10)')
+
+	errNBg=np.maximum(abs(upperNBg-nBgInBlinding),abs(nBgInBlinding-lowerNBg))
+	#print(f'Background: {nBgInBlinding} pm {errNBg}')
+	return nBgInBlinding,errNBg
+
+
+
+# Try without scaling function to reduce uncertainty
+def fitBackgroundTry(XselectedBg,printPlotFit):
+
+	# C,D,E Normalisation factors for easier fit:
+	C=100
+	E=5500
+
+
+	bgMin=5500
+	bgMax=6500
+	steps=21
+	massTab=np.linspace(bgMin,bgMax,steps)	#X axis
+
+	binCenters=[(0.5*(massTab[i]+massTab[i+1])-E)/C for i in range (len(massTab)-1)] # X axis transformaion for easier fit
+	massB0=XselectedBg['B_s0_DTF_M']
+	massHist,binEdges=np.histogram(massB0,bins=massTab,density=False) 	# Histogram computation
+	D=massHist[0]+1														# +1 to avoid dividing by 0
+	massHist=massHist/D 												# Histogram normilised to be ~1 at x=0
+
+	params, paramCov = curve_fit(monoExp, binCenters, massHist,bounds=([0.0,0.0], [2.0, 2.0])) # Do the easier exponential fit
+	a, b=params
+	A=D*float(a)#*np.exp(float(b)*E/C)
+	B=float(b)#/C
+	dA=np.sqrt(paramCov[0][0])#*D*np.exp(B*E/C)
+	dB=np.sqrt(paramCov[1][1])#/C
+	#print(f'a: {a}, b: {b}, c:{c}')
+	#print(f'paramCov: {paramCov}')
+	#dA, dB, dC=paramCov # Estimated covarience on parameters
+	if printPlotFit:
+		fig, ax = plt.subplots(figsize=(8, 4), dpi=300) 
+		ax.plot(binCenters,massHist,'k.',label=f'Mass Histogram')
+		ax.plot(binCenters,monoExp(np.array(binCenters),*params),'b--', # * in call to expands the tuple into separate elements
+									label=f'fit: N={"{0:.4f}".format(a)}*exp(-{"{0:.4f}".format(b)}*M)')
+		plt.xlabel('B_0 mass')
+		plt.ylabel('Number of events')
+		plt.legend()
+		plt.show()
+		plt.close()	
+
+	blindingMin=(5100-E)/C
+	blindingMax=(5500-E)/C
+	nBgOutBlinding=len(massB0)
+	massWidth=(bgMax-bgMin)/(steps-1)/C
+	nBgInBlinding=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A,paramExpB=B)#+ c*(blindingMax-blindingMin) )
+	nBgExtremum1=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A+dA,paramExpB=B+dB)
+	nBgExtremum2=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A-dA,paramExpB=B-dB)
+	nBgExtremum3=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A+dA,paramExpB=B-dB)
+	nBgExtremum4=bgFromExp(blindMin=blindingMin,blindMax=blindingMax,massWidth=massWidth,paramExpA=A-dA,paramExpB=B+dB)
+	
+	print(f'nBgInBlinding:{nBgInBlinding}')
+	print(f'nBgExtremum1:{nBgExtremum1}')
+	print(f'nBgExtremum2:{nBgExtremum2}')
+	print(f'nBgExtremum3:{nBgExtremum3}')
+	print(f'nBgExtremum4:{nBgExtremum4}')
+
+
+
+	#if( (upperNBg<nBgcheck1)|(upperNBg<nBgcheck2)|(lowerNBg>nBgcheck1)|(lowerNBg>nBgcheck2) ):
+	#	print("ERROR in uncertainty computation, min/max are not extremums.")
+	#print(f'Rapport {nBgInBlinding/nBgOutBlinding} between Inside {nBgInBlinding} and outside bliding: {nBgOutBlinding}')
+	if nBgOutBlinding < 10:
+		nBgInBlinding=100000
+		print('Too few event to fit background (<10)')
+
+	upperNBg=np.amax([nBgExtremum1,nBgExtremum2,nBgExtremum3,nBgExtremum4])
+	lowerNBg=np.amin([nBgExtremum1,nBgExtremum2,nBgExtremum3,nBgExtremum4])
 
 	errNBg=np.maximum(abs(upperNBg-nBgInBlinding),abs(nBgInBlinding-lowerNBg))
 	print(f'Background: {nBgInBlinding} pm {errNBg}')
