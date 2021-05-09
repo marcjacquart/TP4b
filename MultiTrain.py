@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import joblib 											# To save model
 import csv 												# Write aoc result in file
+from sklearn.neural_network import MLPClassifier		# Import MLPClassifier Neural Network
 
 # Load csv:
 pathCSV='/home/mjacquar/TP4b/csv'
@@ -47,21 +48,36 @@ features=[  'B_s0_ENDVERTEX_CHI2',
 			'LOG1_cosDIRA']			# List from the recursive feature elimination
 
 # Load variables:
-algoName = argv[1]
-learningRate=float(argv[2])			# Must convert because argv pass the arguments as strings
-maxDepth=int(argv[3])
-nTrees=int(argv[4])
 
-dt    = DecisionTreeClassifier(max_depth=maxDepth)														# Define the decision tree
-model = AdaBoostClassifier(dt, algorithm=algoName, n_estimators=nTrees, learning_rate=learningRate)		# Define the model using the decision tree
-#print("Model defined")
+#BDT:
+#algoName = argv[1]
+#learningRate=float(argv[2])			# Must convert because argv pass the arguments as strings
+#maxDepth=int(argv[3])
+#nTrees=int(argv[4])
+#dt    = DecisionTreeClassifier(max_depth=maxDepth)														# Define the decision tree
+#model = AdaBoostClassifier(dt, algorithm=algoName, n_estimators=nTrees, learning_rate=learningRate)		# Define the model using the decision tree
+
+#MLP:
+solver='adam' # Good for datastet of >1000
+hidden_layer_sizes=[int(element) for element in argv[1].split(',')] 	# Command will be for example: python3 MultiTrain.py 100,100
+																		# Then: hidden_layer_sizes = [100,100]
+print(f'hidden_layer_sizes: {hidden_layer_sizes}')
+model= MLPClassifier(	solver=solver, 
+						hidden_layer_sizes=hidden_layer_sizes, 
+						random_state=0)
+
+
 
 model.fit(X_train[features], y_train)
-#print("model trained")
 
+hiddenLayerText=""
+for element in hidden_layer_sizes:
+	hiddenLayerText+= str(element)
+	hiddenLayerText+='_'
 
-pathModel='/home/mjacquar/TP4b/modelOpti/HyperScanFromRFE'			# https://medium.com/@harsz89/persist-reuse-trained-machine-learning-models-using-joblib-or-pickle-in-python-76f7e4fd707
-joblib.dump(model,f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl')		# Save trained model for later
+pathModel='/home/mjacquar/TP4b/model/NeuralNetwork/HyperScan'			# https://medium.com/@harsz89/persist-reuse-trained-machine-learning-models-using-joblib-or-pickle-in-python-76f7e4fd707
+#joblib.dump(model,f'{pathModel}/bdt_{algoName}_lr{learningRate}_{nTrees}Trees_{maxDepth}Depth.pkl')		# Save trained model for later
+joblib.dump(model,f'{pathModel}/MLP_{hiddenLayerText}.pkl')
 #Model saved
 
 y_pred=model.predict_proba(X_test[features])[:,1]
@@ -69,6 +85,6 @@ y_pred=model.predict_proba(X_test[features])[:,1]
 fpr, tpr, threshold = roc_curve(y_test, y_pred) 	# Use built in fct to compute:  false/true positive read, using the answer and predictions of the test sample
 auc = auc(fpr, tpr) 								# Use built in fct to compute area under curve
 #print(f'Auc={auc}')
-with open(f'{pathCSV}/HyperScanFromRFE.csv', 'a', newline='') as csvfile: # 'a': append mode to not overwrite
+with open(f'{pathCSV}/HyperScanMLP.csv', 'a', newline='') as csvfile: # 'a': append mode to not overwrite
 	spamwriter = csv.writer(csvfile, delimiter=' ')
-	spamwriter.writerow([algoName,learningRate,maxDepth,nTrees,auc])
+	spamwriter.writerow([features,hidden_layer_sizes,auc])
